@@ -1,9 +1,11 @@
 from rest_framework import serializers
 from .models import User, Skill, UserSkill, Badge, UserBadge
+from django.contrib.auth import get_user_model
 
 # -------------------------------
 # Skill Serializers
 # -------------------------------
+User=get_user_model()
 class SkillSerializer(serializers.ModelSerializer):
     class Meta:
         model = Skill

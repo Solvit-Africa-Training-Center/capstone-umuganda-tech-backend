@@ -7,14 +7,14 @@ from .models import User, Skill, UserSkill, Badge, UserBadge
 # -------------------------------
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('phone_number', 'first_name', 'last_name', 'email', 'sector', 'is_staff', 'is_active', 'created_at')
+    list_display = ('phone_number', 'first_name', 'last_name', 'email', 'sector','role', 'is_staff', 'is_active', 'created_at')
     list_filter = ('is_staff', 'is_active', 'sector')
     search_fields = ('phone_number', 'first_name', 'last_name', 'email')
     ordering = ('phone_number',)
     readonly_fields = ('created_at',)
     fieldsets = (
         (None, {'fields': ('phone_number', 'password')}),
-        ('Personal Info', {'fields': ('first_name', 'last_name', 'email', 'sector')}),
+        ('Personal Info', {'fields': ('first_name', 'last_name', 'email', 'sector','role')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important Dates', {'fields': ('last_login', 'created_at')}),
     )
@@ -25,9 +25,8 @@ class UserAdmin(BaseUserAdmin):
         ),
     )
 
-# -------------------------------
+
 # Skills Admin
-# -------------------------------
 @admin.register(Skill)
 class SkillAdmin(admin.ModelAdmin):
     list_display = ('id', 'name')

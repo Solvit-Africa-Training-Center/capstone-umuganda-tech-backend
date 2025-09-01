@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
-
+from django.utils import timezone
+import random
+from  datetime import timedelta
 
 # -------------------------------
 # Custom User Manager
@@ -85,3 +87,27 @@ class UserBadge(models.Model):
 
     class Meta:
         unique_together = ("user", "badge")
+
+# ------------------------------------------
+# OTP Model for Authentication
+# ------------------------------------------
+
+class OTP(models.Model):
+    phone_number = models.CharField(max_length=20)
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_verified = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def is_expired(self):
+        return timezone.now() > self.created_at + timedelta(minutes=5)
+    @classmethod
+    def generate_otp(cls, phone_number):
+        code = str(random.randint(100000, 999999))
+        return cls.objects.create(phone_number=phone_number, code=code)
+    
+    def __str__(self):
+        return f"OTP for {self.phone_number}: {self.code}"
+    

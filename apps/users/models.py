@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from .managers import UserManager
+from django.conf import settings
 # -------------------------------
 # User Model
 # -------------------------------
@@ -42,7 +43,7 @@ class Skill(models.Model):
 
 
 class UserSkill(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="user_skills")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_skills")
     skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name="skill_users")
 
     class Meta:
@@ -62,7 +63,7 @@ class Badge(models.Model):
 
 
 class UserBadge(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="badges")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="badges")
     badge = models.ForeignKey(Badge, on_delete=models.CASCADE, related_name="users")
     awarded_at = models.DateTimeField(auto_now_add=True)
 

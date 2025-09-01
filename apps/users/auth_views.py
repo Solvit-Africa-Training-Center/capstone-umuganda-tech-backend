@@ -14,7 +14,7 @@ from .serializers import (
 def register(request):
     serializer = RegisterSerializer(data=request.data)
     if serializer.is_valid():
-        phone_number = serializer.validated_data['phone_number']
+        phone_number = serializer.validated_data['phone_number']  #type: ignore
 
         # Generate  and send OTP kuri phone number
         otp = OTP.generate_otp(phone_number)
@@ -34,9 +34,9 @@ def verify_otp(request):
     # print("Request data:", request.data)
     serializer = VerifyOTPSerializer(data=request.data)
     if serializer.is_valid():
-        phone_number = serializer.validated_data['phone_number']
-        password = serializer.validated_data['password']
-        otp = serializer.validated_data['otp']
+        phone_number = serializer.validated_data['phone_number'] #type: ignore
+        password = serializer.validated_data['password']  #type: ignore
+        otp = serializer.validated_data['otp']  #type: ignore
 
         #Mark OTP  as verified
         otp.is_verified = True
@@ -71,7 +71,7 @@ def verify_otp(request):
 def login(request):
     serializer = LoginSerializer(data=request.data)
     if serializer.is_valid():
-        user = serializer.validated_data['user']
+        user = serializer.validated_data['user']  #type: ignore
 
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)

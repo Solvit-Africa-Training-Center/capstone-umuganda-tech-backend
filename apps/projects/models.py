@@ -1,5 +1,11 @@
 from django.db import models
 from apps.users.models import User, Skill
+import uuid
+import qrcode
+from io import BytesIO
+from django.core.files import File
+from django.utils import timezone
+from datetime import timedelta
 
 
 # -------------------------------
@@ -68,6 +74,39 @@ class ProjectCheckinCode(models.Model):
     project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name="checkin_code")
     code = models.CharField(max_length=255, unique=True)  # random/hashed token
     expires_at = models.DateTimeField()
+    qr_image = models.ImageField(upload_to='qr_code/', blank=True, null=True)
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = str(uuid.uuid4())
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(hours=24)
+        super().save(*args, **kwargs)
+
+        # Generate QR code
+        if not self.qr_image:
+            self.generate_qr_code()
+
+    def generate_qr_code(self):
+        qr_data = f"umuganda_checkin:{self.project.id}:{self.code}" #type: ignore
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr.add_data(qr_data)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = BytesIO()
+        img.save(buffer, format="PNG") #type: ignore
+
+        filename = f'qr_project_{self.project.id}.png'  #type: ignore
+        self.qr_image.save(filename, File(buffer), save=False)
+        self.save(update_fields=['qr_image'])
+    
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+    
+    def __str__(self):
+        return f"QR Code for {self.project.title}"
+
 
 
 # -------------------------------

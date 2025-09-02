@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Project, ProjectSkill, Attendance
+from .models import Project, ProjectSkill, Attendance,ProjectCheckinCode, ProjectCategory
 
 # -------------------------------
 # Project Skill Serializer
@@ -28,3 +28,52 @@ class ProjectSerializer(serializers.ModelSerializer):
         fields = ["id", "title", "description", "sector", "datetime", "location",
                   "required_volunteers", "picture_url", "admin", "status", "created_at", "skills"]
         read_only_fields = ["created_at"]
+
+# -------------------------------
+# QR Code Serializers
+# -------------------------------
+
+class ProjectCheckinCodeSerializer(serializers.ModelSerializer):
+    qr_image_url = serializers.SerializerMethodField()
+    is_expired = serializers.SerializerMethodField()
+
+    class Meta:
+        model =  ProjectCheckinCode
+        fields = ["id","project", "code", "expires_at", "qr_image_url", "is_expired"]
+        read_only_fields = ["code", "expires_at"]
+
+
+    def get_qr_image_url(self, obj):
+        if obj.qr_image:
+            return self.context['request'].build_absolute_uri(obj.qr_image.url)
+        return None
+    
+    def get_is_expired(self, obj):
+        return obj.is_expired()
+    
+class CheckinSerializer(serializers.Serializer):
+    qr_code = serializers.CharField(max_length=255)
+
+    def validate_qr_code(self, value):
+        try:
+            # Parse QR code format: "umuganda_checkin:project_id:code"
+            parts = value.split(':')
+            if len(parts) != 3 or parts[0] != "umuganda_checkin":
+                raise serializers.ValidationError("Invalid QR code format.")
+            
+            project_id = int(parts[1])
+            code = parts[2]
+
+            checkin_code = ProjectCheckinCode.objects.get(project_id=project_id, code=code)
+
+            if checkin_code.is_expired():
+                raise serializers.ValidationError("This QR code has expired.")
+            
+        except (ValueError, ProjectCheckinCode.DoesNotExist):
+            raise serializers.ValidationError("Invalid QR code.")
+        
+        return {
+            'project_id': project_id,
+            'code': code,
+            'checkin_code': checkin_code
+        }

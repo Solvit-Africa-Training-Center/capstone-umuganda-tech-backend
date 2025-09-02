@@ -82,32 +82,20 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
     def validate_phone_number(self, value):
-        
         # Rwandan phone number kuyivalidatinga
         if not re.match(r'^(\+250|250)?[0-9]{9}$', value):
             raise serializers.ValidationError("Invalid Rwandan phone number format. It should start with +250 followed by 9 digits.")
         # Normalize phone number hano
-        normalized_value = value
         if value.startswith('+250'):
-            normalized_value = value[4:]
+            value = value[4:]
         elif value.startswith('250'):
-            normalized_value = value[3:]
-        # Check if user exists and is verified
-        user_qs = User.objects.filter(phone_number=normalized_value)
-        if user_qs.exists():
-            user = user_qs.first()
-            if user.is_verified:
-                raise serializers.ValidationError("Phone number already in use.")
-        if User.objects.filter(phone_number=normalized_value).exists():
+            value = value[3:]
+        if User.objects.filter(phone_number=value).exists():
             raise serializers.ValidationError("Phone number already in use.")
         
-        return normalized_value
-
-
-
+        return value
 class VerifyOTPSerializer(serializers.Serializer):
-    #phone_number = serializers.CharField(max_length=20)
-    
+    phone_number = serializers.CharField(max_length=20)
     otp_code = serializers.CharField(max_length=6)
     password = serializers.CharField(write_only=True, required=False)
 

@@ -1,6 +1,8 @@
 from rest_framework import serializers
-from .models import User, Skill, UserSkill, Badge, UserBadge
-from django.contrib.auth import get_user_model
+from .models import User, Skill, UserSkill, Badge, UserBadge,OTP
+from django.contrib.auth import authenticate 
+from rest_framework_simplejwt.tokens import RefreshToken
+import re
 
 # -------------------------------
 # Skill Serializers
@@ -44,9 +46,67 @@ class UserBadgeSerializer(serializers.ModelSerializer):
 # -------------------------------
 class UserSerializer(serializers.ModelSerializer):
     skills = UserSkillSerializer(source="userskill_set", many=True, read_only=True)
-    badges = UserBadgeSerializer(source="badges", many=True, read_only=True)
+    badges = UserBadgeSerializer(many=True, read_only=True)
 
     class Meta:
         model = User
         fields = ["id", "phone_number", "first_name", "last_name", "email", "sector", "skills", "badges", "created_at"]
         read_only_fields = ["created_at"]
+
+# --------------------------------
+# Authentication Serializers
+# --------------------------------
+
+class RegisterSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=20)
+    first_name = serializers.CharField(max_length=100, required=True)
+    last_name = serializers.CharField(max_length=100, required=True)
+    
+    def validate_phone_number(self, value):
+        # Rwandan phone number kuyivalidatinga
+        if not re.match(r'^(\+250|250)?[0-9]{9}$', value):
+            raise serializers.ValidationError("Invalid Rwandan phone number format. It should start with +250 followed by 9 digits.")
+        # Normalize phone number hano
+        if value.startswith('+250'):
+            value = value[4:]
+        elif value.startswith('250'):
+            value = value[3:]
+        if User.objects.filter(phone_number=value).exists():
+            raise serializers.ValidationError("Phone number already in use.")
+        
+        return value
+class VerifyOTPSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=20)
+    otp_code = serializers.CharField(max_length=6)
+    password = serializers.CharField(write_only=True, required=False)
+
+    def validate(self, attrs):
+        phone_number = attrs.get('phone_number')
+        otp_code = attrs.get('otp_code')
+
+        try:
+            otp = OTP.objects.filter(phone_number=phone_number, code=otp_code, is_verified=False).latest('created_at')
+
+            if otp.is_expired():
+                raise serializers.ValidationError("OTP has expired.")
+        except OTP.DoesNotExist:
+            raise serializers.ValidationError("Invalid OTP.")
+        attrs['otp'] = otp
+        return attrs
+
+class LoginSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=20)
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        phone_number = attrs.get('phone_number')
+        password = attrs.get('password')
+
+        user = authenticate(username=phone_number, password=password)
+        if not user:
+            raise serializers.ValidationError("Invalid credentials.")
+        
+        if not user.is_active:
+            raise serializers.ValidationError("User account is disabled.")
+        attrs['user'] = user
+        return attrs

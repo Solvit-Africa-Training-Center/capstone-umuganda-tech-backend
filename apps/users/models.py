@@ -29,16 +29,21 @@ class UserManager(BaseUserManager):
 # User Model
 # -------------------------------
 class User(AbstractBaseUser, PermissionsMixin):
+    class Roles(models.TextChoices):
+        LEADER= "leader" , "Leader"
+        VOLUNTEER= "volunteer" , "Volunteer"
     phone_number = models.CharField(max_length=20, unique=True)
     first_name = models.CharField(max_length=100, blank=True, null=True)
     last_name = models.CharField(max_length=100, blank=True, null=True)
     email = models.EmailField(max_length=255, blank=True, null=True)
     sector = models.CharField(max_length=100, blank=True, null=True)
+    role=models.CharField(max_length=50, choices=Roles.choices, default='Volunteer' )
 
     # Django auth flags
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
-
+    is_superuser = models.BooleanField(default= False)
+    is_verified= models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     objects = UserManager()
@@ -61,7 +66,7 @@ class Skill(models.Model):
 
 
 class UserSkill(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="user_skills")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_skills")
     skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name="skill_users")
 
     class Meta:
@@ -81,7 +86,7 @@ class Badge(models.Model):
 
 
 class UserBadge(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="badges")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="badges")
     badge = models.ForeignKey(Badge, on_delete=models.CASCADE, related_name="users")
     awarded_at = models.DateTimeField(auto_now_add=True)
 

@@ -7,6 +7,7 @@ import re
 # -------------------------------
 # Skill Serializers
 # -------------------------------
+User=get_user_model()
 class SkillSerializer(serializers.ModelSerializer):
     class Meta:
         model = Skill

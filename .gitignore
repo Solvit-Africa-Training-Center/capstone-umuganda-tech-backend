@@ -9,3 +9,14 @@ __pycache__
 */migrations/[0-9]*.pyc
 apps/*/migrations/[0-9]*.py
 apps/*/migrations/[0-9]*.pyc
+
+# Ignore ALL migration files except __init__.py
+**/migrations/[0-9]*.py
+**/migrations/[0-9]*.pyc
+apps/*/migrations/[0-9]*.py
+apps/*/migrations/[0-9]*.pyc
+migrations/[0-9]*.py
+migrations/[0-9]*.pyc
+
+# Keep __init__.py files
+!**/migrations/__init__.py

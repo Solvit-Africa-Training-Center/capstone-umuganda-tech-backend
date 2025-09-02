@@ -3,6 +3,7 @@ from .models import User, Skill, UserSkill, Badge, UserBadge,OTP
 from django.contrib.auth import authenticate 
 from rest_framework_simplejwt.tokens import RefreshToken
 import re
+from django.contrib.auth import get_user_model
 
 # -------------------------------
 # Skill Serializers

@@ -3,6 +3,8 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseU
 from django.utils import timezone
 import random
 from  datetime import timedelta
+from django.conf import settings
+from django.core.mail import send_mail
 
 # -------------------------------
 # Custom User Manager

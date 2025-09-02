@@ -102,7 +102,6 @@ class UserBadge(models.Model):
 class OTP(models.Model):
     phone_number = models.CharField(max_length=20)
     code = models.CharField(max_length=6)
-    user= models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_verified = models.BooleanField(default=False)
 

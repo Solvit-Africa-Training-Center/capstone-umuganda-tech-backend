@@ -57,50 +57,6 @@ class UserSerializer(serializers.ModelSerializer):
 # --------------------------------
 # Authentication Serializers
 # --------------------------------
-
-class RegisterSerializer(serializers.Serializer):
-    #password= serializers.CharField(max_length=45, write_only=True)
-    confirm_password= serializers.CharField(max_length=45, write_only=True)
-    
-    class Meta:
-        model= User
-        fields = [ "first_name", "last_name", "phone_number", "role", "password", "confirm_password"]
-        read_only_fields = ["created_at"]
-        write_only_fields = ["password"]
-#password verification while creating account
-    def validate_password(self,data):
-        if data['password'] != data['confirm_password']:
-            return ValueError('password must match')
-        return data
-    
-    def create(self, validated_data):
-        validated_data.pop('confirm_password')
-        password= validated_data.pop('password')
-        user=User(**validated_data)
-        user.set_password(password)
-        return user
-    
-    # def validate_phone_number(self, value):
-        
-    #     # Rwandan phone number kuyivalidatinga
-    #     if not re.match(r'^(\+250|250)?[0-9]{9}$', value):
-    #         raise serializers.ValidationError("Invalid Rwandan phone number format. It should start with +250 followed by 9 digits.")
-    #     # Normalize phone number hano
-    #     normalized_value = value
-    #     if value.startswith('+250'):
-    #         normalized_value = value[4:]
-    #     elif value.startswith('250'):
-    #         normalized_value = value[3:]
-    #     # Check if user exists and is verified
-    #     user_qs = User.objects.filter(phone_number=normalized_value)
-    #     if user_qs.exists():
-    #         user = user_qs.first()
-    #         if user.is_verified:
-    #             raise serializers.ValidationError("Phone number already in use.")
-    #     if User.objects.filter(phone_number=normalized_value).exists():
-    #         raise serializers.ValidationError("Phone number already in use.")
-        
-    #     return normalized_value
 class RegisterSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(max_length=45, write_only=True)
 

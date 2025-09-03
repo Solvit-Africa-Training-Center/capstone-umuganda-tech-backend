@@ -68,7 +68,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             "password": {"write_only": True}
         }
 
-    def validate(self, data): 
+    def validate(self, data):  #type: ignore
         if data["password"] != data["confirm_password"]:
             raise serializers.ValidationError("Passwords must match")
         return data

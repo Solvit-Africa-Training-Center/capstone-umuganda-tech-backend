@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'apps.users',
     'apps.projects',
     'apps.notifications',
+    'django_extensions',
 ]
 
 MIDDLEWARE = [

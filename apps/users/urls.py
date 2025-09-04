@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import UserViewSet, SkillViewSet, UserSkillViewSet, BadgeViewSet, UserBadgeViewSet
-from . import auth_views
+from . import auth_views, file_views
 
 router = DefaultRouter()
 router.register(r'users', UserViewSet)
@@ -17,4 +17,6 @@ urlpatterns = [
     path('auth/verify-otp/', auth_views.verify_otp, name='verify-otp'),
     path('auth/login/', auth_views.login, name='login'),
     path('auth/resend-otp/', auth_views.resend_otp, name='resend-otp'),
+    path('upload-avatar/', file_views.upload_avatar, name='upload_avatar'),
+    path('delete-avatar/', file_views.delete_avatar, name='delete_avatar')
 ]

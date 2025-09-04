@@ -48,11 +48,20 @@ class UserBadgeSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     skills = UserSkillSerializer(source="userskill_set", many=True, read_only=True)
     badges = UserBadgeSerializer(many=True, read_only=True)
+    avatar_url = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "phone_number", "first_name", "last_name", "email", "sector", "role", "skills", "badges", "created_at"]
+        fields = ["id", "phone_number", "first_name", "last_name", "email", "sector", "role", "avatar_url", "skills", "badges", "created_at"]
         read_only_fields = ["created_at"]
+
+    def get_avatar_url(self, obj):
+        if obj.avatar:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.avatar.url)
+            return obj.avatar.url
+        return None
 
 # --------------------------------
 # Authentication Serializers

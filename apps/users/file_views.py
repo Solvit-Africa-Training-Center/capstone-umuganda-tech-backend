@@ -12,6 +12,10 @@ from .serializers import UserSerializer
 @permission_classes([IsAuthenticated])
 def upload_avatar(request):
     """ Upload user avatar """
+    # print('FILES:', list(request.FILES.keys()))
+    # print('USER:', request.user)
+    # print('IS_AUTHENTICATED:', request.user.is_authenticated)
+
     if 'avatar' not in request.FILES:
         return Response({"error": "No avatar file provided."}, status=status.HTTP_400_BAD_REQUEST)
     

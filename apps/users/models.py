@@ -19,6 +19,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(max_length=255, blank=True, null=True)
     sector = models.CharField(max_length=100, blank=True, null=True)
     role=models.CharField(max_length=50, choices=Roles.choices, default='Volunteer' )
+    avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
 
     # Django auth flags
     is_active = models.BooleanField(default=True)

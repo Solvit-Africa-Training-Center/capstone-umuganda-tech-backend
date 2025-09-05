@@ -13,8 +13,34 @@ class Post(models.Model):
     project = models.ForeignKey(Project, on_delete=models.SET_NULL, blank=True, null=True, related_name="posts")
     content = models.TextField()
     type = models.CharField(max_length=50, choices=POST_TYPE_CHOICES)
-    upvotes = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.type} by {self.user.phone_number}"
+
+    @property 
+    def upvotes_count(self):
+        return self.upvotes.count()  #type: ignore
+
+    def has_upvoted(self, user):
+        return self.upvotes.filter(user=user).exists() #type: ignore
+
+class PostUpvote(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="upvotes")
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="upvotes")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "post")
+
+    def __str__(self):
+        return f"{self.user.phone_number} upvoted {self.post.id}" #type: ignore
+    
+class Comment(models.Model):
+    user =  models.ForeignKey(User, on_delete=models.CASCADE, related_name="comments")
+    post =  models.ForeignKey(Post, on_delete=models.CASCADE, related_name="comments")
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Comment by {self.user.phone_number} on post {self.post.id}" #type: ignore

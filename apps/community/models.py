@@ -20,10 +20,10 @@ class Post(models.Model):
 
     @property 
     def upvotes_count(self):
-        return self.upvotes.count()
+        return self.upvotes.count()  #type: ignore
 
     def has_upvoted(self, user):
-        return self.upvotes.filter(user=user).exists()
+        return self.upvotes.filter(user=user).exists() #type: ignore
 
 class PostUpvote(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="upvotes")
@@ -34,7 +34,7 @@ class PostUpvote(models.Model):
         unique_together = ("user", "post")
 
     def __str__(self):
-        return f"{self.user.phone_number} upvoted {self.post.id}"
+        return f"{self.user.phone_number} upvoted {self.post.id}" #type: ignore
     
 class Comment(models.Model):
     user =  models.ForeignKey(User, on_delete=models.CASCADE, related_name="comments")
@@ -43,4 +43,4 @@ class Comment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Comment by {self.user.phone_number} on post {self.post.id}"
+        return f"Comment by {self.user.phone_number} on post {self.post.id}" #type: ignore

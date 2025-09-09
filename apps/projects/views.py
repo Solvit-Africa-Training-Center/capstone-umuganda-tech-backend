@@ -3,6 +3,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from django.db.models import Q, Count
 from .models import Project, ProjectSkill, Attendance, ProjectCheckinCode,Certificate
 from .serializers import (
     ProjectSerializer, ProjectSkillSerializer, AttendanceSerializer,CertificateSerializer, ProjectCheckinCodeSerializer, CheckinSerializer
@@ -17,18 +18,81 @@ class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):  #type: ignore
+        queryset = Project.objects.all()
+
+        # Search functionality
+        search = self.request.query_params.get('search', None)  #type: ignore
+        if search:
+            queryset = queryset.filter(
+                Q(title__icontains=search) |
+                Q(description__icontains=search) |
+                Q(location__icontains=search) |
+                Q(sector__icontains=search)
+            )
+
+        # Filter by status
+        status_filter = self.request.query_params.get('status', None) #type: ignore
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+
+        # Filter by Location
+        location = self.request.query_params.get('location', None) #type: ignore
+        if location:
+            queryset = queryset.filter(location__icontains=location)
+
+        # Filter by date range
+        date_from = self.request.query_params.get('date_from', None) #type: ignore
+        date_to = self.request.query_params.get('date_to', None) #type: ignore
+        if date_from:
+            queryset = queryset.filter(datetime__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(datetime__lte=date_to)
+
+        return queryset.order_by('-created_at')
+
     def perform_create(self, serializer):
-        # amazonq-ignore-next-line
         project = serializer.save(admin=self.request.user)
-        # Create notification for new project
-        # safe_project_data = sanitize_for_notification(project)
         create_project_notification(project, "project_created")
     
     def perform_update(self, serializer):
         project = serializer.save()
-        # Create notification for project update
-        # safe_project_data = sanitize_for_notification(project)
         create_project_notification(project, "project_update")
+
+    @action(detail=False, methods=['get'])
+    def dashboard(self, request):
+        """ Dashboard statistics for frontend """
+        total_projects = Project.objects.count()
+        active_projects = Project.objects.filter(status='ongoing').count()
+        completed_projects = Project.objects.filter(status='completed').count()
+        total_volunteers = Attendance.objects.values('user').distinct().count()
+
+        # Recent projects
+        recent_projects = Project.objects.order_by('-created_at')[:5]
+        return Response({
+            'status':  {
+                'total_projects': total_projects,
+                'active_projects': active_projects,
+                'completed_projects': completed_projects,
+                'total_volunteers': total_volunteers,
+            },
+                'recent_projects': ProjectSerializer(recent_projects, many=True, context={'request': request}).data
+
+        })
+    
+    @action(detail=False, methods=['get'])
+    def my_projects(self, request):
+        """ List of projects created by current user """
+        user = request.user
+        if user.role == 'leader':
+            projects = Project.objects.filter(admin=user)
+        else:
+            # Get project user has attended 
+            attended_project_ids = Attendance.objects.filter(user=user).values_list('project_id', flat=True)
+            projects = Project.objects.filter(id__in=attended_project_ids)
+
+        serializer = self.get_serializer(projects, many=True)
+        return Response(serializer.data)
     
 
 class ProjectSkillViewSet(viewsets.ModelViewSet):
@@ -37,7 +101,7 @@ class ProjectSkillViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
 class AttendanceViewSet(viewsets.ModelViewSet):
-    # queryset = Attendance.objects.all()
+    queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -84,7 +148,7 @@ def checkin(request):
         qr_data = serializer.validated_data['qr_code'] #type: ignore
         project_id = qr_data['project_id']
 
-        # heck if user already checked in
+        # Check if user already checked in
         existing_attendance =  Attendance.objects.filter(
             user=request.user,
             project_id=project_id,

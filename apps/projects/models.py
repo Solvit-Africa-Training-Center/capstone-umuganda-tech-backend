@@ -1,7 +1,7 @@
 from django.db import models
 from apps.users.models import User, Skill
 import uuid
-import qrcode
+import qrcode              #type: ignore
 from io import BytesIO
 from django.core.files import File
 from django.utils import timezone

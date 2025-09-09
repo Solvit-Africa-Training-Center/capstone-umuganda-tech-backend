@@ -5,6 +5,7 @@ from .views import (
     generate_qr_code, checkin, checkout, project_attendance
     )
 from . import file_views
+from .api_docs import api_overview
 
 
 router = DefaultRouter()
@@ -15,6 +16,7 @@ router.register(r'certificates', CertificateViewSet, basename='certificate')
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('api-overview/', api_overview, name='api-overview'),
     path('projects/<int:project_id>/generate_qr_code/', generate_qr_code, name='generate_qr_code'),
     path('checkin/', checkin, name='checkin'),
     path('checkout/', checkout, name='checkout'),

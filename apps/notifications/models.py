@@ -1,6 +1,7 @@
 from django.db import models
 from apps.users.models import User
 from apps.projects.models import Project
+from django.utils.html import escape
 
 class Notification(models.Model):
     NOTIFICATION_TYPES = [
@@ -23,7 +24,7 @@ class Notification(models.Model):
         ordering = ["-created_at"]
     
     def __str__(self):
-        return f"{self.title} - {self.user.phone_number}"
+        return f"{escape(self.title)} - {escape(self.user.phone_number)}"
     
     @classmethod
     def create_notification(cls, user, title, message, notification_type, project=None):
@@ -55,4 +56,4 @@ class NotificationLog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.channel} to {self.user.phone_number} ({self.status})"
+        return f"{self.channel} to {escape(self.user.phone_number)} ({self.status})"

@@ -78,11 +78,11 @@ class CheckinSerializer(serializers.Serializer):
             if checkin_code.is_expired():
                 raise serializers.ValidationError("This QR code has expired.")
             
-        except (ValueError, ProjectCheckinCode.DoesNotExist):
-            raise serializers.ValidationError("Invalid QR code.")
-        
-        return {
+            return {
             'project_id': project_id,
             'code': code,
             'checkin_code': checkin_code
         }
+            
+        except (ValueError, ProjectCheckinCode.DoesNotExist):
+            raise serializers.ValidationError("Invalid QR code.")

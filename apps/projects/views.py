@@ -3,26 +3,46 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from django.utils.html import escape
+import re
+from django.db import models
 from .models import Project, ProjectSkill, Attendance, ProjectCheckinCode
 from .serializers import (
     ProjectSerializer, ProjectSkillSerializer, AttendanceSerializer, ProjectCheckinCodeSerializer, CheckinSerializer
     )
 from apps.notifications.utils import create_project_notification
  
+def sanitize_for_notification(project):
+    """ Sanitize projects data before passing to notification system """
+    #  Remove path traversal characters and sanitize content
+    safe_title = re.sub(r'[./\\]', '', project.title)
+    safe_sector = re.sub(r'[./\\]', '', project.sector) if project.sector else ''
+
+    # create a safe copy of project data
+    return{
+        'id': project.id,
+        'title': escape(safe_title),
+        'sector': escape(safe_sector),
+        'admin': project.admin
+    }
+
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
+        # amazonq-ignore-next-line
         project = serializer.save(admin=self.request.user)
         # Create notification for new project
-        create_project_notification(project, "project_create")
+        safe_project_data = sanitize_for_notification(project)
+        create_project_notification(safe_project_data, "project_created")
     
     def perform_update(self, serializer):
         project = serializer.save()
         # Create notification for project update
-        create_project_notification(project, "project_update")
+        safe_project_data = sanitize_for_notification(project)
+        create_project_notification(safe_project_data, "project_update")
     
 
 class ProjectSkillViewSet(viewsets.ModelViewSet):
@@ -31,10 +51,25 @@ class ProjectSkillViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
 class AttendanceViewSet(viewsets.ModelViewSet):
-    queryset = Attendance.objects.all()
+    # queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        """ Filter attendance records based on user permissions """
+        user = self.request.user
+        # Users can only see their own attendance records
+        # Leaders can see attendance for their projects
+        if user.role == 'leader':
+            # leaders can see attendance for projects
+            return Attendance.objects.filter(
+                models.Q(user=user) | 
+                models.Q(project__admin=user)
+                )
+        else:
+            # Volunteers can only see their own attendance
+            return Attendance.objects.filter(user=user)
+        
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def generate_qr_code(request, project_id):

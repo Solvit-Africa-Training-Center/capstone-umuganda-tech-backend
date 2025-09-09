@@ -6,6 +6,19 @@ from django.shortcuts import get_object_or_404
 import os
 from .models import Project
 from .serializers import ProjectSerializer
+from django.conf import settings
+
+def is_safe_path(path):
+    """ Validate that the path is within the media directory """
+    try:
+        # get absolute paths
+        abs_path = os.path.abspath(path)
+        media_root = os.path.abspath(settings.MEDIA_ROOT)
+
+        # check if the path starts with media root
+        return abs_path.startswith(media_root)
+    except (OSError, ValueError):
+        return False
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -32,7 +45,7 @@ def upload_project_image(request, project_id):
     
     # Delete old image if exists
     if project.image:
-        if os.path.isfile(project.image.path):
+        if is_safe_path(project.image.path) and os.path.exists(project.image.path):
             os.remove(project.image.path)
 
     # Save new image
@@ -59,7 +72,7 @@ def delete_project_image(request, project_id):
         return Response({'error': 'No project image to delete.'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Delete file from storage
-    if os.path.isfile(project.image.path):
+    if is_safe_path(project.image.path) and os.path.exists(project.image.path):
         os.remove(project.image.path)
 
     # Remove from database

@@ -48,8 +48,8 @@ def verify_otp(request):
         user, created = User.objects.get_or_create(
             phone_number=phone_number,
             defaults={
-                'first_name': request.data.get('first_name', ''),
-                'last_name': request.data.get('last_name', ''),
+                'first_name': serializer.validated_data.get('first_name', ''),
+                'last_name': serializer.validated_data.get('last_name', ''),
             }
         )
 

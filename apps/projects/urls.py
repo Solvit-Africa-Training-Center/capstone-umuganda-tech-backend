@@ -4,6 +4,7 @@ from .views import (
     ProjectViewSet, ProjectSkillViewSet, AttendanceViewSet,
     generate_qr_code, checkin, checkout, project_attendance
     )
+from . import file_views
 
 router = DefaultRouter()
 router.register(r'projects', ProjectViewSet)
@@ -15,5 +16,8 @@ urlpatterns = [
     path('projects/<int:project_id>/generate_qr_code/', generate_qr_code, name='generate_qr_code'),
     path('checkin/', checkin, name='checkin'),
     path('checkout/', checkout, name='checkout'),
-    path('projects/<int:project_id>/attendance/', project_attendance, name='project_attendance')
+    path('projects/<int:project_id>/attendance/', project_attendance, name='project_attendance'),
+    path('projects/<int:project_id>/upload-image/', file_views.upload_project_image, name='upload_project_image'),
+    path('projects/<int:project_id>/delete-image/', file_views.delete_project_image, name='delete_project_image'),
+
 ]

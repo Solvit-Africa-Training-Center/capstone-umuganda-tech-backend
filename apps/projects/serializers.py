@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Project, ProjectSkill, Attendance,ProjectCheckinCode, ProjectCategory
+from .models import Project, ProjectSkill, Attendance,ProjectCheckinCode, ProjectCategory,Certificate
 
 # -------------------------------
 # Project Skill Serializer
@@ -77,3 +77,25 @@ class CheckinSerializer(serializers.Serializer):
             'code': code,
             'checkin_code': checkin_code
         }
+
+
+#Generating certificate Serializer when User complished specific project
+
+class CertificateSerializer(serializers.ModelSerializer):
+    project_title = serializers.CharField(source='project.title', read_only=True)
+    user_name = serializers.SerializerMethodField()
+    certificate_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Certificate
+        fields = ["id", "user", "project", "project_title", "user_name", "certificate_url", "file_url", "issued_at"]
+        read_only_fields = ["issued_at"]
+
+    def get_user_name(self, obj):
+        return f"{obj.user.first_name or ''} {obj.user.last_name or ''}".strip() or obj.user.phone_number
+    
+    def get_certificate_url(self, obj):
+        # Try PDF file first, fallback to file_url
+        if obj.certificate_file:
+            return self.context['request'].build_absolute_uri(obj.certificate_file.url)
+        return obj.file_url

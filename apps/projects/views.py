@@ -9,6 +9,9 @@ from .serializers import (
     )
 from apps.users.permissions import IsOwnerOrAdmin
 from .services import CertificateService
+from django.db import models
+from apps.notifications.utils import create_project_notification
+
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
@@ -18,14 +21,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
         # amazonq-ignore-next-line
         project = serializer.save(admin=self.request.user)
         # Create notification for new project
-        safe_project_data = sanitize_for_notification(project)
-        create_project_notification(safe_project_data, "project_created")
+        # safe_project_data = sanitize_for_notification(project)
+        create_project_notification(project, "project_created")
     
     def perform_update(self, serializer):
         project = serializer.save()
         # Create notification for project update
-        safe_project_data = sanitize_for_notification(project)
-        create_project_notification(safe_project_data, "project_update")
+        # safe_project_data = sanitize_for_notification(project)
+        create_project_notification(project, "project_update")
     
 
 class ProjectSkillViewSet(viewsets.ModelViewSet):
@@ -100,7 +103,7 @@ def checkin(request):
 
         return Response({
             'message': 'Checked in successfully.',
-            'attendance_id': AttendanceSerializer(attendance).data
+            'attendance': AttendanceSerializer(attendance).data
         }, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -113,7 +116,7 @@ def checkout(request):
         qr_data = serializer.validated_data['qr_code'] #type: ignore
         project_id = qr_data['project_id']
 
-        # Find activate attendance record
+        # Find active attendance record
         try:
             attendance = Attendance.objects.get(
                 user=request.user,
@@ -157,8 +160,8 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = CertificateSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
 
-    def get_queryset(self):
-        if self.request.user.role == 'admin':
+    def get_queryset(self):  #type: ignore
+        if self.request.user.role == 'admin':   #type: ignore
             return Certificate.objects.all()
         return Certificate.objects.filter(user=self.request.user)
     

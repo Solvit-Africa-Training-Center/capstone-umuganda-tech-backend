@@ -55,12 +55,12 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     serializer_class = AttendanceSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
+    def get_queryset(self): # type: ignore
         """ Filter attendance records based on user permissions """
         user = self.request.user
         # Users can only see their own attendance records
         # Leaders can see attendance for their projects
-        if user.role == 'leader':
+        if user.role == 'leader': #type: ignore
             # leaders can see attendance for projects
             return Attendance.objects.filter(
                 models.Q(user=user) | 

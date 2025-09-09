@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'apps.projects',
     'apps.notifications',
     'django_extensions',
+    'rest_framework_simplejwt',
 ]
 
 MIDDLEWARE = [

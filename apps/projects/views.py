@@ -3,29 +3,12 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
-from django.utils.html import escape
-import re
-from django.db import models
-from .models import Project, ProjectSkill, Attendance, ProjectCheckinCode
+from .models import Project, ProjectSkill, Attendance, ProjectCheckinCode,Certificate
 from .serializers import (
-    ProjectSerializer, ProjectSkillSerializer, AttendanceSerializer, ProjectCheckinCodeSerializer, CheckinSerializer
+    ProjectSerializer, ProjectSkillSerializer, AttendanceSerializer,CertificateSerializer, ProjectCheckinCodeSerializer, CheckinSerializer
     )
-from apps.notifications.utils import create_project_notification
- 
-def sanitize_for_notification(project):
-    """ Sanitize projects data before passing to notification system """
-    #  Remove path traversal characters and sanitize content
-    safe_title = re.sub(r'[./\\]', '', project.title)
-    safe_sector = re.sub(r'[./\\]', '', project.sector) if project.sector else ''
-
-    # create a safe copy of project data
-    return{
-        'id': project.id,
-        'title': escape(safe_title),
-        'sector': escape(safe_sector),
-        'admin': project.admin
-    }
-
+from apps.users.permissions import IsOwnerOrAdmin
+from .services import CertificateService
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
@@ -144,6 +127,10 @@ def checkout(request):
         attendance.check_out_time = timezone.now()
         attendance.save()
 
+         # Auto-generate certificate if project is completed
+        certificate_viewset = CertificateViewSet()
+        certificate_viewset._auto_generate_certificate(request.user, attendance.project)
+
         return Response({
             'message': 'Checked out successfully.',
             'attendance': AttendanceSerializer(attendance).data
@@ -163,3 +150,58 @@ def project_attendance(request, project_id):
         'project': project.title,
         'attendances': serializer.data
     }, status=status.HTTP_200_OK)
+
+#Certificate views
+
+class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = CertificateSerializer
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
+
+    def get_queryset(self):
+        if self.request.user.role == 'admin':
+            return Certificate.objects.all()
+        return Certificate.objects.filter(user=self.request.user)
+    
+    @action(detail=False, methods=['post'], url_path='generate/(?P<project_id>[^/.]+)')
+    def generate_certificate(self, request, project_id=None):
+        """Generate certificate for completed project"""
+        project = get_object_or_404(Project, id=project_id)
+        
+        attendance = Attendance.objects.filter(
+            user=request.user,
+            project=project,
+            check_out_time__isnull=False
+        ).first()
+        
+        if not attendance:
+            return Response({'error': 'You must complete attendance for this project.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if project.status != 'completed':
+            return Response({'error': 'Certificate can only be generated for completed projects.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        certificate, created = Certificate.objects.get_or_create(
+            user=request.user,
+            project=project
+        )
+        
+        # Generate PDF if new certificate or no file exists
+        if created or not certificate.certificate_file:
+            CertificateService.generate_pdf(certificate)
+        
+        return Response({
+            'message': 'Certificate generated successfully.' if created else 'Certificate already exists.',
+            'certificate': self.get_serializer(certificate).data
+        }, status=status.HTTP_200_OK)
+
+    def _auto_generate_certificate(self, user, project):
+        """Helper method for auto-generating certificates"""
+        if project.status == 'completed':
+            certificate, created = Certificate.objects.get_or_create(
+                user=user,
+                project=project
+            )
+            if created or not certificate.certificate_file:
+                CertificateService.generate_pdf(certificate)
+            return certificate
+
+# Remove the duplicate functions at the bottom of the file

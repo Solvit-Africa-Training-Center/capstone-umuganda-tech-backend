@@ -116,11 +116,26 @@ class ProjectCheckinCode(models.Model):
 # -------------------------------
 # Certificates
 # -------------------------------
+
+# -------------------------------
+# Certificates
+# -------------------------------
 class Certificate(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="certificates")
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="certificates")
-    file_url = models.TextField()  # link to PDF/Cloud file
+    certificate_file = models.FileField(upload_to='certificates/', blank=True, null=True)
+    file_url = models.TextField(blank=True, null=True)  # Keep for backward compatibility
     issued_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ("user", "project")
+    
+    def __str__(self):
+        return f"Certificate for {self.user} - {self.project.title}"
+
+
+
+
 
 
 # -------------------------------

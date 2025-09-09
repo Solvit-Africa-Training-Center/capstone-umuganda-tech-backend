@@ -107,6 +107,8 @@ class VerifyOTPSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=20)
     otp_code = serializers.CharField(max_length=6)
     password = serializers.CharField(write_only=True, required=False)
+    first_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
 
     def validate(self, attrs):
         phone_number = attrs.get('phone_number')

@@ -36,7 +36,10 @@ class PostSerializer(serializers.ModelSerializer):
         return obj.comments.count()
     
     def create(self, validated_data):
-        validated_data['user'] = self.context['request'].user
+        request = self.context.get('request')
+        if not request:
+            raise serializers.ValidationError("Request context is required to create a post.")
+        validated_data['user'] = request.user
         return super().create(validated_data)
     
 class PostUpvoteSerializer(serializers.ModelSerializer):

@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from .models import Post, PostUpvote, Comment
 from .serializers import PostSerializer, PostUpvoteSerializer, CommentSerializer
+from apps.notifications.utils import create_comment_notification, create_upvote_notification
 
 class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all().order_by('-created_at')
@@ -31,7 +32,9 @@ class PostViewSet(viewsets.ModelViewSet):
             })
         else:
             # Add upvote
-            PostUpvote.objects.create(user=request.user, post=post)
+            upvote = PostUpvote.objects.create(user=request.user, post=post)
+            # Create notification
+            create_upvote_notification(upvote)
             return Response({
                 'message': 'Upvoted successfully.',
                 'upvoted': True,
@@ -51,7 +54,9 @@ class PostViewSet(viewsets.ModelViewSet):
         elif request.method == 'POST':
             serializer = CommentSerializer(data=request.data, context={'request': request})                            
             if serializer.is_valid():
-                serializer.save(post=post)
+                comment = serializer.save(post=post)
+                # Create notification
+                create_comment_notification(comment)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

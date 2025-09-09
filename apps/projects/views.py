@@ -7,11 +7,23 @@ from .models import Project, ProjectSkill, Attendance, ProjectCheckinCode
 from .serializers import (
     ProjectSerializer, ProjectSkillSerializer, AttendanceSerializer, ProjectCheckinCodeSerializer, CheckinSerializer
     )
-
+from apps.notifications.utils import create_project_notification
+ 
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        project = serializer.save(admin=self.request.user)
+        # Create notification for new project
+        create_project_notification(project, "project_create")
+    
+    def perform_update(self, serializer):
+        project = serializer.save()
+        # Create notification for project update
+        create_project_notification(project, "project_update")
+    
 
 class ProjectSkillViewSet(viewsets.ModelViewSet):
     queryset = ProjectSkill.objects.all()

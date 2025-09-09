@@ -37,7 +37,7 @@ class Project(models.Model):
     datetime = models.DateTimeField()
     location = models.CharField(max_length=255, blank=True, null=True)
     required_volunteers = models.PositiveIntegerField(blank=True, null=True)
-    picture_url = models.TextField(blank=True, null=True)
+    image = models.ImageField(upload_to='project/', blank=True, null=True)
     admin = models.ForeignKey(User, on_delete=models.CASCADE, related_name="projects")
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default="planned")
     created_at = models.DateTimeField(auto_now_add=True)

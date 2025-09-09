@@ -3,6 +3,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from .models import User, OTP
 from .serializers import (
     RegisterSerializer, VerifyOTPSerializer,
@@ -53,6 +55,11 @@ def verify_otp(request):
 
         # Set password if  provided
         if password:
+            try:
+                validate_password(password)
+            except ValidationError as e:
+                return Response({'password': e.messages}, status=status.HTTP_400_BAD_REQUEST)
+            
             user.set_password(password)
             user.save()
 

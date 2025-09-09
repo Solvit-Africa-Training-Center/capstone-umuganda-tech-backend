@@ -22,12 +22,21 @@ class AttendanceSerializer(serializers.ModelSerializer):
 # -------------------------------
 class ProjectSerializer(serializers.ModelSerializer):
     skills = ProjectSkillSerializer(source="projectskill_set", many=True, read_only=True)
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
         fields = ["id", "title", "description", "sector", "datetime", "location",
-                  "required_volunteers", "picture_url", "admin", "status", "created_at", "skills"]
+                  "required_volunteers", "image_url", "admin", "status", "created_at", "skills"]
         read_only_fields = ["created_at"]
+
+    def get_image_url(self, obj):
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
 
 # -------------------------------
 # QR Code Serializers

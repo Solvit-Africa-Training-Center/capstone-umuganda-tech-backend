@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import User, Skill, UserSkill, Badge, UserBadge,OTP
 from django.contrib.auth import authenticate 
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken  
 import re
 from django.contrib.auth import get_user_model
 
@@ -66,49 +66,31 @@ class UserSerializer(serializers.ModelSerializer):
 # --------------------------------
 # Authentication Serializers
 # --------------------------------
-class RegisterSerializer(serializers.ModelSerializer):
-    confirm_password = serializers.CharField(max_length=45, write_only=True)
-
-    class Meta:
-        model = User
-        fields = ["first_name", "last_name", "phone_number", "role", "password", "confirm_password"]
-        read_only_fields = ["created_at"]
-        extra_kwargs = {
-            "password": {"write_only": True}
-        }
-
-    def validate(self, data):  #type: ignore
-        if data["password"] != data["confirm_password"]:
-            raise serializers.ValidationError("Passwords must match")
-        return data
-
-    def create(self, validated_data):
-        validated_data.pop("confirm_password")
-        password = validated_data.pop("password")
-        user = User(**validated_data)
-        user.set_password(password)
-        user.save()
-        return user
-
+class RegisterSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=20)
+    
     def validate_phone_number(self, value):
-        # Rwandan phone number kuyivalidatinga
+        # Rwandan phone number validation
         if not re.match(r'^(\+250|250)?[0-9]{9}$', value):
             raise serializers.ValidationError("Invalid Rwandan phone number format. It should start with +250 followed by 9 digits.")
-        # Normalize phone number hano
+        
+        # Normalize phone number
         if value.startswith('+250'):
             value = value[4:]
         elif value.startswith('250'):
             value = value[3:]
+            
         if User.objects.filter(phone_number=value).exists():
             raise serializers.ValidationError("Phone number already in use.")
         
         return value
+
 class VerifyOTPSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=20)
     otp_code = serializers.CharField(max_length=6)
-    password = serializers.CharField(write_only=True, required=False)
-    first_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    last_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    password = serializers.CharField(write_only=True, required=True)
+    first_name = serializers.CharField(max_length=100, required=True)
+    last_name = serializers.CharField(max_length=100, required=True)
 
     def validate(self, attrs):
         phone_number = attrs.get('phone_number')

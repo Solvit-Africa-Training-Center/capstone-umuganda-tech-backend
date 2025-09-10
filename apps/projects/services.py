@@ -6,6 +6,9 @@ from django.core.files.base import ContentFile
 from django.conf import settings
 from io import BytesIO
 import os
+from .models import Attendance
+from apps.users.models import Badge, UserBadge
+
 
 class CertificateService:
     @staticmethod
@@ -148,3 +151,139 @@ class CertificateService:
         buffer.close()
 
         return certificate
+
+
+class GamificationService:
+    BADGE_SIZE = 150
+    GRADIENT_STEPS = 5
+    ALPHA_STEP = 30
+    
+    @staticmethod
+    def create_default_badges():
+        if Badge.objects.filter(name__in=["First Timer", "Regular Contributor", "Community Champion"]).exists():
+            return
+            
+        GamificationService._create_badge_images()
+        
+        badges = [
+            {
+                "name": "First Timer", 
+                "description": "Completed your first Umuganda project",
+                "icon_url": "/static/images/badges/first_timer.png"
+            },
+            {
+                "name": "Regular Contributor", 
+                "description": "Completed 5 projects",
+                "icon_url": "/static/images/badges/regular_contributor.png"
+            },
+            {
+                "name": "Community Champion", 
+                "description": "Completed 10+ projects",
+                "icon_url": "/static/images/badges/community_champion.png"
+            },
+        ]
+        
+        for badge_data in badges:
+            Badge.objects.get_or_create(
+                name=badge_data["name"], 
+                defaults={
+                    "description": badge_data["description"],
+                    "icon_url": badge_data["icon_url"]
+                }
+            )
+    
+    @staticmethod
+    def _create_badge_images():
+        from PIL import Image, ImageDraw
+        
+        badges_dir = os.path.join(settings.BASE_DIR, 'static', 'images', 'badges')
+        os.makedirs(badges_dir, exist_ok=True)
+        
+        badges = [
+            {"name": "first_timer", "color": "#4CAF50", "icon": "star"},
+            {"name": "regular_contributor", "color": "#2196F3", "icon": "trophy"},
+            {"name": "community_champion", "color": "#9C27B0", "icon": "crown"}
+        ]
+        
+        for badge in badges:
+            badge_path = os.path.join(badges_dir, f"{badge['name']}.png")
+            if not os.path.exists(badge_path):
+                GamificationService._create_badge(badge_path, badge)
+
+    @staticmethod
+    def _create_badge(path, config):
+        from PIL import Image, ImageDraw
+        
+        img = None
+        try:
+            img = Image.new('RGBA', (GamificationService.BADGE_SIZE, GamificationService.BADGE_SIZE), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+            
+            for i in range(GamificationService.GRADIENT_STEPS):
+                alpha = 255 - i * GamificationService.ALPHA_STEP
+                color = (*ImageDraw.ImageColor.getrgb(config["color"]), alpha)
+                draw.ellipse([10-i, 10-i, 140+i, 140+i], fill=color)
+            
+            draw.ellipse([25, 25, 125, 125], fill='white', outline=config["color"], width=3)
+            draw.ellipse([20, 20, 130, 130], outline='#FFD700', width=2)
+            
+            if config["icon"] == "star":
+                GamificationService._draw_star(draw, 75, 75, 20, config["color"])
+            elif config["icon"] == "trophy":
+                GamificationService._draw_trophy(draw, 75, 75, config["color"])
+            elif config["icon"] == "crown":
+                GamificationService._draw_crown(draw, 75, 75, config["color"])
+            
+            img.save(path, 'PNG')
+        finally:
+            if img:
+                img.close()
+
+    @staticmethod
+    def _draw_star(draw, cx, cy, size, color):
+        import math
+        points = []
+        for i in range(10):
+            angle = i * math.pi / 5
+            radius = size if i % 2 == 0 else size * 0.4
+            x = cx + radius * math.cos(angle - math.pi/2)
+            y = cy + radius * math.sin(angle - math.pi/2)
+            points.append((x, y))
+        draw.polygon(points, fill=color)
+
+    @staticmethod
+    def _draw_trophy(draw, cx, cy, color):
+        draw.ellipse([cx-15, cy-20, cx+15, cy-5], fill=color)
+        draw.rectangle([cx-20, cy-5, cx+20, cy+5], fill=color)
+        draw.rectangle([cx-10, cy+5, cx+10, cy+15], fill=color)
+        draw.arc([cx-25, cy-15, cx-10, cy+5], outline=color, width=3)
+        draw.arc([cx+10, cy-15, cx+25, cy+5], outline=color, width=3)
+
+    @staticmethod
+    def _draw_crown(draw, cx, cy, color):
+        points = [(cx-20, cy+5), (cx-10, cy-15), (cx, cy-5), (cx+10, cy-20), (cx+20, cy+5)]
+        draw.polygon(points, fill=color)
+        draw.rectangle([cx-20, cy+5, cx+20, cy+15], fill=color)
+        draw.ellipse([cx-2, cy-10, cx+2, cy-6], fill='#FFD700')
+
+    @staticmethod
+    def award_badges(user):
+        if not Badge.objects.filter(name="First Timer").exists():
+            GamificationService.create_default_badges()
+            
+        completed_count = Attendance.objects.filter(user=user, check_out_time__isnull=False).count()
+        
+        badge_thresholds = [(1, "First Timer"), (5, "Regular Contributor"), (10, "Community Champion")]
+        awarded_badges = []
+        
+        for threshold, badge_name in badge_thresholds:
+            if completed_count >= threshold:
+                try:
+                    badge = Badge.objects.get(name=badge_name)
+                    user_badge, created = UserBadge.objects.get_or_create(user=user, badge=badge)
+                    if created:
+                        awarded_badges.append(badge)
+                except Badge.DoesNotExist:
+                    continue
+        
+        return awarded_badges

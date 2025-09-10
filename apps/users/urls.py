@@ -13,10 +13,13 @@ router.register(r'user-badges', UserBadgeViewSet)
 urlpatterns = [
     path("", include(router.urls)),
 
+    # Authentication
     path('auth/register/', auth_views.register, name='register'),
     path('auth/verify-otp/', auth_views.verify_otp, name='verify-otp'),
     path('auth/login/', auth_views.login, name='login'),
     path('auth/resend-otp/', auth_views.resend_otp, name='resend-otp'),
+    
+    # File Management
     path('upload-avatar/', file_views.upload_avatar, name='upload_avatar'),
     path('delete-avatar/', file_views.delete_avatar, name='delete_avatar')
 ]

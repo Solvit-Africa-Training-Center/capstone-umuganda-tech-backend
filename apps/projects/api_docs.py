@@ -83,6 +83,16 @@ def api_overview(request):
             'mark_all_read': 'POST /api/notifications/notifications/mark_all_as_read/',
             'notification_logs': 'GET /api/notifications/logs/',
         },
+        'search':{
+            'Basic Search': 'GET /api/projects/projects/?search={title}',
+            'Status Filter': 'GET /api/projects/projects/?status={status}',
+            'Location Filter': 'GET /api/projects/projects/?location={location}',
+            'Date Range': 'GET /api/projects/projects/?date_from={date_from} &date_to={date_to}',
+            'Combined Filters': 'GET /api/projects/projects/?search={title}&status={status}&location={location}',
+            'Smart Discovery Features': 'GET /api/projects/projects/discover/',
+            'Search Suggestions (Autocomplete)': 'GET /api/projects/projects/search_suggestions/?q=ki',
+            ' Advanced Sorting & Pagination': 'GET /api/projects/projects/sorted_projects/',
+        },
         'admin': {
             'admin_panel': 'GET /admin/',
         },

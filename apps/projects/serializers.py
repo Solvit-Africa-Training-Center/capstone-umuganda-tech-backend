@@ -48,7 +48,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     def get_is_user_registered(self, obj):
         request =self.context.get('request')
         if request and request.user.is_authenticated:
-            return Attendance.objects.filter(project=obj, user=request).exists()
+            return Attendance.objects.filter(project=obj, user=request.user).exists()
         return False
     
     def get_admin_name(self, obj):

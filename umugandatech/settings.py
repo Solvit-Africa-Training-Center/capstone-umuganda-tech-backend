@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'rest_framework_simplejwt',
     'corsheaders',
+    'django_filters',
 ]
 
 MIDDLEWARE = [

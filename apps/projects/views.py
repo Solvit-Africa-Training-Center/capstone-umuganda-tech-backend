@@ -1,4 +1,5 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, filters
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.utils import timezone
@@ -12,11 +13,19 @@ from apps.users.permissions import IsOwnerOrAdmin
 from .services import CertificateService
 from django.db import models
 from apps.notifications.utils import create_project_notification
+from datetime import datetime, timedelta
+
 
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    # basic filter
+    # filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    # filterset_fields = ['status', 'location']
+    # search_fields = ['title', 'description', 'location']
+
 
     def get_queryset(self):  #type: ignore
         queryset = Project.objects.all()
@@ -50,6 +59,145 @@ class ProjectViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(datetime__lte=date_to)
 
         return queryset.order_by('-created_at')
+    
+    @action(detail=False, methods=['get'])
+    def discover(self, request):
+        """ Smart project discovery based on user profile and preferences """
+        user =  request.user
+
+        # Nearby Projects (based on user`s sector or provided loction)
+        location = request.query_params.get('location')
+        if not location and user.sector:
+            location = user.sector
+
+        if location:
+            nearby = Project.objects.filter(location__icontains=location, status__in=['planned', 'ongoing']).exclude(admin=user)[:5]
+
+        else:
+            nearby = Project.objects.filter(status__in=['planned', 'ongoing']).exclude(admin=user)[:5]
+
+        # Trending projects (most attended recently)
+        trending = Project.objects.annotate(
+            attendance_count=Count('attendances')
+        ).filter(
+            status='ongoing',
+            datetime__gte=timezone.now() - timedelta(days=30)
+        ).order_by('-attendance_count')[:5]
+
+        # Urgent projects (happenning soon)
+        urgent = Project.objects.filter(
+            datetime__gte=timezone.now(), datetime__lte=timezone.now() + timedelta(days=7), status='planned'
+        ).order_by('datetime')[:5]
+
+        # Recent projects (newly created)
+        recent = Project.objects.filter(
+            status='planned', created_at__gte=timezone.now() - timedelta(days=7)
+        ).order_by('-created_at')[:5]
+
+        return Response({
+            'nearby': ProjectSerializer(nearby, many=True, context={'request': request}).data,
+            'trending': ProjectSerializer(trending, many=True, context={'request': request}).data,
+            'urgent': ProjectSerializer(urgent, many=True, context={'request': request}).data,
+            'recent': ProjectSerializer(recent, many=True, context={'request': request}).data,
+              })
+    @action(detail=False, methods=['get'])
+    def search_suggestions(self, request):
+        """ Search suggections for autocomplete functionality """
+        query = request.query_params.get('q', '')
+
+        if len(query) < 2:
+            return Response({'suggestions': []})
+        
+        # Location suggetions
+        locations = Project.objects.filter(
+            location__icontains=query
+        ).values_list('location', flat=True).distinct()[:5]
+
+        #  Project title suggetions
+        titles = Project.objects.filter(
+            title__icontains=query
+        ).values_list('title', flat=True).distinct()[:5]
+
+        # Sector suggestions 
+        sectors = Project.objects.filter(
+            sector__icontains=query
+        ).values_list('sector', flat=True).distinct()[:5]
+        
+        return Response({
+           'suggestion': {
+               'locations': list(set(locations)),
+                'titles': list(titles),
+                'sectors': list(set(sectors))
+             }
+        })
+    
+    @action(detail=False, methods=['get'])
+    def sorted_projects(self, request):
+        """ Get projects with advanced sorting """
+        queryset = Project.objects.all()
+
+        # apply existing filter first
+        search = request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(title__icontains=search) |
+                Q(description__icontains=search) |
+                Q(location__icontains=search) |
+                Q(sector__icontains=search)
+            )
+
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        location = request.query_params.get('location')
+        if location:
+            queryset = queryset.filter(location__icontains=location)
+
+        # Advanced sorting 
+        sort_by = request.query_params.get('sort_by', 'created_at')
+        order = request.query_params.get('order', 'desc')
+
+        # Annotate with calculated fields for sorting
+        queryset = queryset.annotate(
+            volunteer_count=Count('attendances_user', distinct=True),
+            days_until_event=timezone.now() - models.F('datetime')
+        )
+
+        # Apply sorting
+        sort_options = {
+            'created_at': 'created_at',
+            'datetime': 'datetime',
+            'title': 'title',
+            'volunteer_count': 'volunteer_count',
+            'required_volunteers': 'required_volunteers',
+            'urgency': 'datetime',  #sort by how soon the event is
+        }
+        
+        sort_field = sort_options.get(sort_by, 'created_at')
+
+        if order == 'desc':
+            sort_field = f'-{sort_field}'
+
+        queryset = queryset.order_by(sort_field)
+
+        # pagination
+        page_size = int(request.query_params.get('page_size', 10))
+        page = int(request.query_params.get('page', 1))
+
+        start = (page - 1) * page_size
+        end = start + page_size
+
+        total_count = queryset.count()
+        projects = queryset[start:end]
+
+        return Response ({
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size,
+            'results': ProjectSerializer(projects, many=True, context={'request': request}).data
+        })
 
     def perform_create(self, serializer):
         project = serializer.save(admin=self.request.user)

@@ -58,9 +58,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware', 
     'corsheaders.middleware.CorsMiddleware',
-    'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -95,7 +95,7 @@ WSGI_APPLICATION = 'umugandatech.wsgi.application'
 
 if config("DATABASE_URL", default=None):
     DATABASES = {
-        'default': dj_database_url.parse(config("DATABASE_URL"))
+        'default': dj_database_url.parse(config("DATABASE_URL")) #type: ignore
     }
 else:
     DATABASES = {
@@ -147,7 +147,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = 'static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'statiicfiles')
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -166,7 +166,7 @@ REST_FRAMEWORK = {
             'rest_framework.throttling.AnonRateThrottle',
             'rest_framework.throttling.UserRateThrottle'
     ],
-    "DEAULT_THROTTLE_RATES": {
+    "DEFAULT_THROTTLE_RATES": {
             "anon": "100/day",
             "user": "1000/day"
     }

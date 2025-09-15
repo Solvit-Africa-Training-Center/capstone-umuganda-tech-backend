@@ -42,17 +42,20 @@ class UserBadgeSerializer(serializers.ModelSerializer):
         model = UserBadge
         fields = ["id", "badge", "badge_id", "awarded_at"]
 
-# -------------------------------
-# User Serializer
-# -------------------------------
+# UserSerializer class
 class UserSerializer(serializers.ModelSerializer):
     skills = UserSkillSerializer(source="userskill_set", many=True, read_only=True)
     badges = UserBadgeSerializer(many=True, read_only=True)
     avatar_url = serializers.SerializerMethodField()
+    achievement_stats = serializers.SerializerMethodField()  # Add this line
 
     class Meta:
         model = User
-        fields = ["id", "phone_number", "first_name", "last_name", "email", "sector", "role", "avatar_url", "skills", "badges", "created_at"]
+        fields = [
+            "id", "phone_number", "first_name", "last_name", "email", 
+            "sector", "role", "avatar_url", "skills", "badges", 
+            "achievement_stats", "created_at"  # Add achievement_stats here
+        ]
         read_only_fields = ["created_at"]
 
     def get_avatar_url(self, obj):
@@ -62,6 +65,19 @@ class UserSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.avatar.url)
             return obj.avatar.url
         return None
+    
+    # Add this new method
+    def get_achievement_stats(self, obj):
+        from apps.projects.models import Attendance
+        
+        completed_projects = Attendance.objects.filter(user=obj, check_out_time__isnull=False).count()
+        
+        return {
+            'completed_projects': completed_projects,
+            'total_badges': obj.badges.count(),
+            'latest_badge': obj.badges.order_by('-awarded_at').first().badge.name if obj.badges.exists() else None
+        }
+
 
 # --------------------------------
 # Authentication Serializers

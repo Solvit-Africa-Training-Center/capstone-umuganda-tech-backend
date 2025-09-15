@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_DB: umuganda_db
+      POSTGRES_USER: umuganda_user
+      POSTGRES_PASSWORD: StrongPassword123
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umuganda_user -d umuganda_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+      - media_volume:/app/media
+      - static_volume:/app/static
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=django-insecure-y$$4=58&b=^z9n$$^c(f6j0_^^3@9g)ub=z^=5z)o2^qbd13uw!_
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=umuganda_db
+      - DB_USER=umuganda_user
+      - DB_PASSWORD=StrongPassword123
+      - DB_HOST=db
+      - DB_PORT=5432
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  media_volume:
+  static_volume:

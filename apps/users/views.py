@@ -1,46 +1,16 @@
-<<<<<<< HEAD
-from rest_framework import viewsets, permissions, status
-=======
 from rest_framework import viewsets, permissions
->>>>>>> main
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework import status
 from .models import User, Skill, UserSkill, Badge, UserBadge
 from .serializers import UserSerializer, SkillSerializer, UserSkillSerializer, BadgeSerializer, UserBadgeSerializer
-<<<<<<< HEAD
-from apps.projects.models import Attendance
-
-=======
 from apps.projects.models import Attendance, Certificate
->>>>>>> main
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-<<<<<<< HEAD
-    @action(detail=True, methods=['get'])
-    def achievements(self, request, pk=None):
-        """Get user's achievements and statistics"""
-        user = self.get_object()
-        
-        completed_projects = Attendance.objects.filter(user=user, check_out_time__isnull=False).count()
-        total_badges = user.badges.count()
-        recent_badges = user.badges.order_by('-awarded_at')[:5]
-        
-        return Response({
-            'user_id': user.id,
-            'statistics': {
-                'completed_projects': completed_projects,
-                'total_badges': total_badges,
-            },
-            'badges': UserBadgeSerializer(recent_badges, many=True).data,
-            'all_badges': UserBadgeSerializer(user.badges.all(), many=True).data
-        })
-
-
-=======
     @action(detail=False, methods=['get'])
     def profile(self, request):
         """ Get current user profile """
@@ -57,7 +27,6 @@ class UserViewSet(viewsets.ModelViewSet):
             }
         })
 
->>>>>>> main
 class SkillViewSet(viewsets.ModelViewSet):
     queryset = Skill.objects.all()
     serializer_class = SkillSerializer

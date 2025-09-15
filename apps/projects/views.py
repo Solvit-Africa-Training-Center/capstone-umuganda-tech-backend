@@ -16,6 +16,7 @@ from apps.notifications.utils import create_project_notification
 from datetime import datetime, timedelta
 
 
+from .services import CertificateService,GamificationService
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
@@ -342,14 +343,23 @@ def checkout(request):
         attendance.check_out_time = timezone.now()
         attendance.save()
 
-         # Auto-generate certificate if project is completed
+        # Auto-generate certificate if project is completed
         certificate_viewset = CertificateViewSet()
         certificate_viewset._auto_generate_certificate(request.user, attendance.project)
 
-        return Response({
+        # Award badges for milestones
+        awarded_badges = GamificationService.award_badges(request.user)
+
+        response_data = {
             'message': 'Checked out successfully.',
             'attendance': AttendanceSerializer(attendance).data
-        }, status=status.HTTP_200_OK)
+        }
+        
+        if awarded_badges:
+            from apps.users.serializers import BadgeSerializer
+            response_data['new_badges'] = BadgeSerializer(awarded_badges, many=True).data
+
+        return Response(response_data, status=status.HTTP_200_OK)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -418,5 +428,3 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
             if created or not certificate.certificate_file:
                 CertificateService.generate_pdf(certificate)
             return certificate
-
-# Remove the duplicate functions at the bottom of the file

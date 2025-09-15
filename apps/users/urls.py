@@ -22,5 +22,5 @@ urlpatterns = [
     
     # File Management
     path('upload-avatar/', file_views.upload_avatar, name='upload_avatar'),
-    path('delete-avatar/', file_views.delete_avatar, name='delete_avatar')
+    path('delete-avatar/', file_views.delete_avatar, name='delete_avatar'),
 ]

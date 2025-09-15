@@ -103,6 +103,28 @@ def complete_registration(request):
         'message': 'Registration completed successfully'
     }, status=status.HTTP_201_CREATED)
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def make_superuser(request):
+    """ Make user  superuser - Will be removed in """
+    phone_number = request.data.get('phone_number', '7880000000')
+
+    try: 
+        user = User.objects.get(phone_number=phone_number)
+        user.is_staff = True
+        user.is_superuser = True
+        user.is_verified = True
+        user.save()
+
+        return Response({
+            'message': 'User is now a superuser',
+            'phone_number': phone_number,
+            'is_staff': user.is_staff,
+            'is_superuser': user.is_superuser
+
+        })
+    except User.DoesNotExist:
+        return Response({'error': 'User does not found.'}, status=404)
 
 @api_view(["POST"])
 @permission_classes([AllowAny])

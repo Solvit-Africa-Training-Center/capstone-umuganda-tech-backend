@@ -20,6 +20,4 @@ urlpatterns = [
     path('auth/resend-otp/', auth_views.resend_otp, name='resend-otp'),
     path('upload-avatar/', file_views.upload_avatar, name='upload_avatar'),
     path('delete-avatar/', file_views.delete_avatar, name='delete_avatar'),
-    path('auth/make-superuser/', auth_views.make_superuser, name='make-superuser'),
-
 ]

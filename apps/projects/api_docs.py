@@ -12,6 +12,7 @@ def api_overview(request):
         'authentication': {
             'register': 'POST /api/users/auth/register/',
             'verify_otp': 'POST /api/users/auth/verify-otp/',
+            'complete-registration': '/api/users/auth/complete-registration/',
             'login': 'POST /api/users/auth/login/',
             'resend_otp': 'POST /api/users/auth/resend-otp/',
             'token_obtain': 'POST /api/token/',

@@ -1,11 +1,12 @@
 from django.db import models
 from apps.users.models import User, Skill
 import uuid
-import qrcode
+import qrcode              #type: ignore
 from io import BytesIO
 from django.core.files import File
 from django.utils import timezone
 from datetime import timedelta
+from django.utils.html import escape
 
 
 # -------------------------------
@@ -64,7 +65,10 @@ class Attendance(models.Model):
     check_out_time = models.DateTimeField(blank=True, null=True)
 
     class Meta:
-        unique_together = ("user", "project")
+        # allow multiple attendance records per user per project
+        # This suports recurring project and multiple sessions
+        # unique_together = ("user", "project")
+        ordering = ['-check_in_time']
 
 
 # -------------------------------
@@ -105,7 +109,7 @@ class ProjectCheckinCode(models.Model):
         return timezone.now() > self.expires_at
     
     def __str__(self):
-        return f"QR Code for {self.project.title}"
+        return f"QR Code for {escape(self.project.title)}"
 
 
 

@@ -22,12 +22,16 @@ class AttendanceSerializer(serializers.ModelSerializer):
 # -------------------------------
 class ProjectSerializer(serializers.ModelSerializer):
     skills = ProjectSkillSerializer(source="projectskill_set", many=True, read_only=True)
+
     image_url = serializers.SerializerMethodField()
+    volunteer_count = serializers.SerializerMethodField()
+    is_user_registered = serializers.SerializerMethodField()
+    admin_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
         fields = ["id", "title", "description", "sector", "datetime", "location",
-                  "required_volunteers", "image_url", "admin", "status", "created_at", "skills"]
+                  "required_volunteers", "image_url", "admin", "admin_name", "status", "created_at", "skills", "volunteer_count", "is_user_registered"]
         read_only_fields = ["created_at"]
 
     def get_image_url(self, obj):
@@ -37,6 +41,18 @@ class ProjectSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.image.url)
             return obj.image.url
         return None
+    
+    def get_volunteer_count(self, obj):
+        return Attendance.objects.filter(project=obj).values('user').distinct().count()
+    
+    def get_is_user_registered(self, obj):
+        request =self.context.get('request')
+        if request and request.user.is_authenticated:
+            return Attendance.objects.filter(project=obj, user=request).exists()
+        return False
+    
+    def get_admin_name(self, obj):
+        return f"{obj.admin.first_name or ''} {obj.admin.last_name or ''}".strip() or obj.admin.phone_number
 
 # -------------------------------
 # QR Code Serializers

@@ -1,5 +1,6 @@
 from django.contrib import admin
 from .models import Post, PostUpvote, Comment
+from django.db.models import Count
 
 
 # -------------------------------
@@ -12,8 +13,13 @@ class PostAdmin(admin.ModelAdmin):
     search_fields = ('user__phone_number', 'content', 'project__title')
     readonly_fields = ('created_at',)
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(
+            upvotes_count_annotated=Count('upvotes')
+        )
+
     def upvotes_count(self, obj):
-        return obj.upvotes_count
+        return obj.upvotes_count_annotated
     upvotes_count.short_description = 'Upvotes' #type: ignore
 
 # -------------------------------

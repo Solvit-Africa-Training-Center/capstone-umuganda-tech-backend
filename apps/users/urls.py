@@ -12,6 +12,7 @@ router.register(r'user-badges', UserBadgeViewSet)
 
 urlpatterns = [
     path("", include(router.urls)),
+    
 
     # Authentication
     path('auth/register/', auth_views.register, name='register'),
@@ -20,6 +21,7 @@ urlpatterns = [
     path('auth/complete-leader-registration/', auth_views.complete_leader_registration, name='complete-leader-registration'),
     path('auth/login/', auth_views.login, name='login'),
     path('auth/resend-otp/', auth_views.resend_otp, name='resend-otp'),
+    path('auth/force-migrate/', auth_views.force_migrate, name='force-migrate'),
     
     # File Management
     path('upload-avatar/', file_views.upload_avatar, name='upload_avatar'),

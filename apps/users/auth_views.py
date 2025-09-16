@@ -249,3 +249,15 @@ def resend_otp(request):
     # Include OTP in development mode only
     # if settings.DEBUG:
     #     response_data["otp_code"] = otp.code
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def force_migrate(request):
+    """ TEMPORARY: Force run migrations (WILL BE REMOVED AFTER) """
+    try:
+        from django.core.management import call_command
+        call_command('migrate', '--run-syndb')
+        return Response({'message': 'Migrations run successfully'}, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)

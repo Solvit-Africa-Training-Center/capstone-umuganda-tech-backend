@@ -312,3 +312,41 @@ def force_migrate(request):
             'message': 'Migration failed'
         }, status=500)
     
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_database(request):
+    """NUCLEAR OPTION: Reset all migrations and recreate database"""
+    try:
+        from django.core.management import call_command
+        from io import StringIO
+        
+        out = StringIO()
+        
+        # Step 1: Reset all app migrations to zero
+        call_command('migrate', 'users', 'zero', '--noinput', stdout=out)
+        call_command('migrate', 'projects', 'zero', '--noinput', stdout=out)
+        call_command('migrate', 'community', 'zero', '--noinput', stdout=out)
+        call_command('migrate', 'notifications', 'zero', '--noinput', stdout=out)
+        
+        # Step 2: Delete all migration files (simulate)
+        # This will be handled by recreating migrations
+        
+        # Step 3: Create fresh migrations
+        call_command('makemigrations', 'users', '--noinput', stdout=out)
+        call_command('makemigrations', 'projects', '--noinput', stdout=out)
+        call_command('makemigrations', 'community', '--noinput', stdout=out)
+        call_command('makemigrations', 'notifications', '--noinput', stdout=out)
+        
+        # Step 4: Apply all migrations
+        call_command('migrate', '--noinput', stdout=out)
+        
+        return Response({
+            'message': 'Database reset and recreated successfully',
+            'output': out.getvalue()
+        })
+    except Exception as e:
+        return Response({
+            'error': str(e),
+            'message': 'Database reset failed'
+        }, status=500)

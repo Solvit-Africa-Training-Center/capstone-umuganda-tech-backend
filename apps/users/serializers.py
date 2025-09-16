@@ -70,7 +70,7 @@ class UserSerializer(serializers.ModelSerializer):
     def get_achievement_stats(self, obj):
         from apps.projects.models import Attendance
         
-        completed_projects = Attendance.objects.filter(user=obj, check_out_time__isnull=False).count()
+        completed_projects = 0 #Attendance.objects.filter(user=obj, check_out_time__isnull=False).count()
         
         return {
             'completed_projects': completed_projects,

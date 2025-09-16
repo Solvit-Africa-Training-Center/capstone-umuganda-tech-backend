@@ -10,6 +10,8 @@ from .serializers import (
     RegisterSerializer,
     LoginSerializer, UserSerializer
 )
+from .sms_service import SMSService
+from django.conf import settings
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -21,12 +23,23 @@ def register(request):
         
         # Generate and send OTP
         otp = OTP.generate_otp(phone_number)
+
+        # Send SMS
+        sms_service = SMSService()
+        sms_sent, sms_result = sms_service.send_otp(phone_number, otp.code) #type: ignore
         
-        return Response({
+        response_data = {
             "message": "OTP sent to phone number",
             "phone_number": phone_number,
-            "otp": otp.code  # for development only
-        }, status=status.HTTP_200_OK)
+            "sms_sent": sms_sent
+            # "otp": otp.code  # for development only
+        }
+
+        # Include OTP in development mode only
+        if settings.DEBUG:
+            response_data["otp"] = otp.code
+           
+        return Response(response_data, status=status.HTTP_200_OK) 
      return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(["POST"])
@@ -153,8 +166,17 @@ def resend_otp(request):
     # Generate new OTP
     otp = OTP.generate_otp(phone_number)
 
-    # TODO:  Send SMS with OTP code
-    return Response({
-        'message': 'OTP resent successfully.',
-        'otp_code': otp.code  # for development only, will be removed in production
-    }, status=status.HTTP_200_OK)
+    # Send SMS
+    sms_service = SMSService()
+    sms_sent, sms_result = sms_service.send_otp(phone_number, otp.code) #type: ignore
+    
+    response_data = {
+        "message": "OTP resent successfully",
+        "sms_sent": sms_sent
+    }
+
+    # Include OTP in development mode only
+    if settings.DEBUG:
+        response_data["otp_code"] = otp.code
+
+    return Response(response_data, status=status.HTTP_200_OK)

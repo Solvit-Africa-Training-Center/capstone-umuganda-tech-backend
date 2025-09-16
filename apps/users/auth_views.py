@@ -202,5 +202,3 @@ def resend_otp(request):
     # Include OTP in development mode only
     # if settings.DEBUG:
     #     response_data["otp_code"] = otp.code
-
-    return Response(response_data, status=status.HTTP_200_OK)

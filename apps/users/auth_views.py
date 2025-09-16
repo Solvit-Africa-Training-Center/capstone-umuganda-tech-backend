@@ -1,6 +1,6 @@
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
@@ -15,7 +15,7 @@ from django.conf import settings
 import logging 
 
 # Add logger for debug
-logger = logging.getLogger(__name__)    
+logger = logging.getLogger(__name__)  
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -127,6 +127,53 @@ def complete_registration(request):
         'refresh': str(refresh),
         'user': UserSerializer(user).data,
         'message': 'Registration completed successfully'
+    }, status=status.HTTP_201_CREATED)
+
+# Complete registration of leader
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def complete_leader_registration(request):
+    """" Step 3: Complete LEADER registration with verified phone """
+    phone_number = request.data.get('phone_number')
+    password = request.data.get('password')
+    first_name = request.data.get('first_name')
+    last_name = request.data.get('last_name')
+    sector = request.data.get('sector')
+    experience = request.data.get('experience', '')
+
+    if not all([phone_number, password, first_name, last_name, sector]):
+        return Response({'error': 'All fields are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if OTP was verified
+    verified_otp = OTP.objects.filter(phone_number=phone_number, is_verified=True).first()
+    if not verified_otp:
+        return Response({'error': 'Phone number not verified. Please verify OTP first.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Validate password
+    try:
+        validate_password(password)
+    except ValidationError as e:
+        return Response({'password': e.messages}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Create user with LEader role
+    user = User.objects.create_user(  #type: ignore
+        phone_number=phone_number,
+        first_name=first_name,
+        last_name=last_name,
+        role='leader'
+    )
+    user.set_password(password)
+    user.is_verified = True
+    user.sector = sector
+    user.save()
+
+    # Generate JWT tokens
+    refresh = RefreshToken.for_user(user)
+    return Response({
+        'access': str(refresh.access_token),
+        'refresh': str(refresh),
+        'user': UserSerializer(user).data,
+        'message': 'Leader registration completed successfully'
     }, status=status.HTTP_201_CREATED)
 
 @api_view(['POST'])

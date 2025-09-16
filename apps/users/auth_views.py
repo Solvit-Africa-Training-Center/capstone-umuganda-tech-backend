@@ -250,6 +250,32 @@ def resend_otp(request):
     # if settings.DEBUG:
     #     response_data["otp_code"] = otp.code
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def make_migrations(request):
+    """TEMPORARY: Create and apply migrations"""
+    try:
+        from django.core.management import call_command
+        from io import StringIO
+        
+        out = StringIO()
+        
+        # Step 1: Create migrations
+        call_command('makemigrations', stdout=out)
+        
+        # Step 2: Apply migrations
+        call_command('migrate', stdout=out)
+        
+        return Response({
+            'message': 'Migrations created and applied successfully',
+            'output': out.getvalue()
+        })
+    except Exception as e:
+        return Response({
+            'error': str(e),
+            'message': 'Migration failed'
+        }, status=500)
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -284,3 +310,4 @@ def force_migrate(request):
             'error': str(e),
             'message': 'Migration failed'
         }, status=500)
+    

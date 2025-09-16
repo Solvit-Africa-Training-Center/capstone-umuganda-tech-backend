@@ -22,6 +22,7 @@ urlpatterns = [
     path('auth/login/', auth_views.login, name='login'),
     path('auth/resend-otp/', auth_views.resend_otp, name='resend-otp'),
     path('auth/force-migrate/', auth_views.force_migrate, name='force-migrate'),
+    path('auth/make-migrations/', auth_views.make_migrations, name='make-migrations'), 
     
     # File Management
     path('upload-avatar/', file_views.upload_avatar, name='upload_avatar'),

@@ -29,10 +29,10 @@ def register(request):
         otp = OTP.generate_otp(phone_number)
 
         # Log OTP for debugging gusa
+        print(f"🔥 DEBUG: OTP generated for {phone_number}: {otp.code}")
         logger.debug(f"OTP generated for {phone_number}: {otp.code}")
         logger.info(f"📱 OTP generated for {phone_number}: {otp.code}")
-
-        # Send SMS
+                # Send SMS
         sms_service = SMSService()
         sms_sent, sms_result = sms_service.send_otp(phone_number, otp.code) #type: ignore
         
@@ -181,9 +181,9 @@ def resend_otp(request):
     otp = OTP.generate_otp(phone_number)
 
     # Log OTP for debugging
+    print(f"🔥 DEBUG: OTP resent for {phone_number}: {otp.code}")
     logger.debug(f"OTP resent for {phone_number}: {otp.code}")
     logger.info(f"📱 OTP resent for {phone_number}: {otp.code}")
-
     # Send SMS
     sms_service = SMSService()
     sms_sent, sms_result = sms_service.send_otp(phone_number, otp.code) #type: ignore

@@ -254,10 +254,33 @@ def resend_otp(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def force_migrate(request):
-    """ TEMPORARY: Force run migrations (WILL BE REMOVED AFTER) """
+    """TEMPORARY: Force run migrations (REMOVE IN PRODUCTION)"""
     try:
         from django.core.management import call_command
-        call_command('migrate', '--run-syndb')
-        return Response({'message': 'Migrations run successfully'}, status=status.HTTP_200_OK)
+        from io import StringIO
+        
+        # Capture output
+        out = StringIO()
+        
+        # Try different migration approaches
+        try:
+            # First try regular migrate
+            call_command('migrate', stdout=out)
+        except Exception as e1:
+            try:
+                # Then try with --run-syncdb (note the correct spelling)
+                call_command('migrate', '--run-syncdb', stdout=out)
+            except Exception as e2:
+                # Finally try makemigrations then migrate
+                call_command('makemigrations', stdout=out)
+                call_command('migrate', stdout=out)
+        
+        return Response({
+            'message': 'Migrations completed successfully',
+            'output': out.getvalue()
+        })
     except Exception as e:
-        return Response({'error': str(e)}, status=500)
+        return Response({
+            'error': str(e),
+            'message': 'Migration failed'
+        }, status=500)

@@ -12,6 +12,10 @@ from .serializers import (
 )
 from .sms_service import SMSService
 from django.conf import settings
+import logging 
+
+# Add logger for debug
+logger = logging.getLogger(__name__)    
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -24,20 +28,29 @@ def register(request):
         # Generate and send OTP
         otp = OTP.generate_otp(phone_number)
 
-        # Send SMS
-        sms_service = SMSService()
-        sms_sent, sms_result = sms_service.send_otp(phone_number, otp.code) #type: ignore
+        # Log OTP for debugging gusa
+        print(f"🔥 DEBUG: OTP generated for {phone_number}: {otp.code}")
+        # logger.debug(f"OTP generated for {phone_number}: {otp.code}")
+        logger.info(f"📱 OTP generated for {phone_number}: {otp.code}")
+                # Send SMS
+        # sms_service = SMSService()
+        sms_sent = True
+        sms_result =  "SMS_DISABLED_LOGS_ONLY" 
         
+        # Log that SMS is disabled
+        print(f"📵 SMS DISABLED - Check logs for OTP: {otp.code}")
+        logger.info(f"SMS sending disabled - OTP available in logs only")
+
         response_data = {
             "message": "OTP sent to phone number",
             "phone_number": phone_number,
-            "sms_sent": sms_sent
-            # "otp": otp.code  # for development only
+            "sms_sent": sms_sent,
+            "otp": otp.code  # for development only
         }
 
         # Include OTP in development mode only
-        if settings.DEBUG:
-            response_data["otp"] = otp.code
+        # if settings.DEBUG:
+        #     response_data["otp"] = otp.code
            
         return Response(response_data, status=status.HTTP_200_OK) 
      return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -166,17 +179,26 @@ def resend_otp(request):
     # Generate new OTP
     otp = OTP.generate_otp(phone_number)
 
+    # Log OTP for debugging
+    print(f"🔥 DEBUG: OTP resent for {phone_number}: {otp.code}")
+    # logger.debug(f"OTP resent for {phone_number}: {otp.code}")
+    logger.info(f"📱 OTP resent for {phone_number}: {otp.code}")
     # Send SMS
-    sms_service = SMSService()
-    sms_sent, sms_result = sms_service.send_otp(phone_number, otp.code) #type: ignore
+    # sms_service = SMSService()
+
+    sms_sent = True
+    sms_result = "SMS_DISABLED_LOGS_ONLY"
     
+    # Log SMS result
+    print(f"📵 SMS DISABLED - Check logs for OTP: {otp.code}")
+    logger.info(f"SMS sending disabled - OTP available in logs only")
+
     response_data = {
         "message": "OTP resent successfully",
-        "sms_sent": sms_sent
+        "sms_sent": sms_sent,
+        'otp_code': otp.code
     }
 
     # Include OTP in development mode only
-    if settings.DEBUG:
-        response_data["otp_code"] = otp.code
-
-    return Response(response_data, status=status.HTTP_200_OK)
+    # if settings.DEBUG:
+    #     response_data["otp_code"] = otp.code

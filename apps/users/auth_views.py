@@ -260,11 +260,11 @@ def make_migrations(request):
         
         out = StringIO()
         
-        # Step 1: Create migrations
-        call_command('makemigrations', stdout=out)
+        # Step 1: Create migrations with --noinput flag
+        call_command('makemigrations', '--noinput', stdout=out)
         
         # Step 2: Apply migrations
-        call_command('migrate', stdout=out)
+        call_command('migrate', '--noinput', stdout=out)
         
         return Response({
             'message': 'Migrations created and applied successfully',
@@ -275,6 +275,7 @@ def make_migrations(request):
             'error': str(e),
             'message': 'Migration failed'
         }, status=500)
+
 
 
 @api_view(['POST'])

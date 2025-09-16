@@ -12,6 +12,10 @@ from .serializers import (
 )
 from .sms_service import SMSService
 from django.conf import settings
+import logging 
+
+# Add logger for debug
+logger = logging.getLogger(__name__)    
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -24,10 +28,19 @@ def register(request):
         # Generate and send OTP
         otp = OTP.generate_otp(phone_number)
 
+        # Log OTP for debugging gusa
+        logger.debug(f"OTP generated for {phone_number}: {otp.code}")
+
         # Send SMS
         sms_service = SMSService()
         sms_sent, sms_result = sms_service.send_otp(phone_number, otp.code) #type: ignore
         
+        # Log SMS result
+        if sms_sent:
+            logger.info(f"SMS sent successfully to {phone_number}. SID: {sms_result}")
+        else:
+            logger.error(f"Failed to send SMS to {phone_number}: Error: {sms_result}")
+
         response_data = {
             "message": "OTP sent to phone number",
             "phone_number": phone_number,
@@ -166,10 +179,19 @@ def resend_otp(request):
     # Generate new OTP
     otp = OTP.generate_otp(phone_number)
 
+    # Log OTP for debugging
+    logger.debug(f"OTP resent for {phone_number}: {otp.code}")
+
     # Send SMS
     sms_service = SMSService()
     sms_sent, sms_result = sms_service.send_otp(phone_number, otp.code) #type: ignore
     
+    # Log SMS result
+    if sms_sent:
+        logger.info(f"SMS resent successfully to {phone_number}. SID: {sms_result}")
+    else:
+        logger.error(f"Failed to send SMS to {phone_number}: Error: {sms_result}")
+
     response_data = {
         "message": "OTP resent successfully",
         "sms_sent": sms_sent

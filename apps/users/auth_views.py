@@ -30,6 +30,7 @@ def register(request):
 
         # Log OTP for debugging gusa
         logger.debug(f"OTP generated for {phone_number}: {otp.code}")
+        logger.info(f"📱 OTP generated for {phone_number}: {otp.code}")
 
         # Send SMS
         sms_service = SMSService()
@@ -181,6 +182,7 @@ def resend_otp(request):
 
     # Log OTP for debugging
     logger.debug(f"OTP resent for {phone_number}: {otp.code}")
+    logger.info(f"📱 OTP resent for {phone_number}: {otp.code}")
 
     # Send SMS
     sms_service = SMSService()

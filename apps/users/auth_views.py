@@ -180,7 +180,7 @@ def complete_leader_registration(request):
 @permission_classes([AllowAny])
 def make_superuser(request):
     """ Make user  superuser - Will be removed in """
-    phone_number = request.data.get('phone_number', '7880000000')
+    phone_number = request.data.get('phone_number', '788000000')
 
     try: 
         user = User.objects.get(phone_number=phone_number)

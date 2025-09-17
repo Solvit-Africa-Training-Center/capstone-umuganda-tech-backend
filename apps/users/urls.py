@@ -21,10 +21,7 @@ urlpatterns = [
     path('auth/complete-leader-registration/', auth_views.complete_leader_registration, name='complete-leader-registration'),
     path('auth/login/', auth_views.login, name='login'),
     path('auth/resend-otp/', auth_views.resend_otp, name='resend-otp'),
-    path('auth/force-migrate/', auth_views.force_migrate, name='force-migrate'),
-    path('auth/make-migrations/', auth_views.make_migrations, name='make-migrations'), 
-    path('auth/reset-database/', auth_views.reset_database, name='reset-database'),
-
+    path('auth/make-superuser/', auth_views.make_superuser, name='make-superuser'),
     
     # File Management
     path('upload-avatar/', file_views.upload_avatar, name='upload_avatar'),

@@ -5,18 +5,23 @@ from rest_framework.response import Response
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, Count
-from .models import Project, ProjectSkill, Attendance, ProjectCheckinCode,Certificate
+from .models import (
+    Project, ProjectSkill, Attendance, 
+    ProjectCheckinCode,Certificate, ProjectRegistration, 
+    LeaderFollowing)
 from .serializers import (
-    ProjectSerializer, ProjectSkillSerializer, AttendanceSerializer,CertificateSerializer, ProjectCheckinCodeSerializer, CheckinSerializer
+    ProjectSerializer, ProjectSkillSerializer, AttendanceSerializer,CertificateSerializer, ProjectCheckinCodeSerializer, CheckinSerializer,
+    ProjectRegistrationSerializer, LeaderFollowingSerializer
     )
+from apps.users.models import User
 from apps.users.permissions import IsOwnerOrAdmin
 from .services import CertificateService
 from django.db import models
 from apps.notifications.utils import create_project_notification
 from datetime import datetime, timedelta
-
-
 from .services import CertificateService,GamificationService
+
+
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
@@ -203,10 +208,19 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         project = serializer.save(admin=self.request.user)
         create_project_notification(project, "project_created")
+    def get_permissions(self):
+        """Make project detail endpoint public"""
+        if self.action == 'retrieve':
+            return [permissions.AllowAny()]
+        return super().get_permissions()
+    # notifiying the leader follower
+        from apps.notifications.utils import notify_leader_followers
+        notify_leader_followers(self.request.user, project)
     
     def perform_update(self, serializer):
         project = serializer.save()
         create_project_notification(project, "project_update")
+
 
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
@@ -243,6 +257,73 @@ class ProjectViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(projects, many=True)
         return Response(serializer.data)
     
+
+    @action(detail=True, methods=['post'])
+    def join(self, request, pk=None):
+        """Join/Register for a project"""
+        from django.db import transaction
+        
+        project = self.get_object()
+        user = request.user
+        
+        # Check if project is still open for registration
+        if project.status not in ['planned', 'ongoing']:
+            return Response({'error': 'Cannot join this project'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with transaction.atomic():
+                # Lock the project to prevent race conditions
+                project = Project.objects.select_for_update().get(pk=project.pk)
+                
+                # Check if project is full
+                if project.registrations.count() >= project.required_volunteers:
+                    return Response({'error': 'Project is full'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                registration, created = ProjectRegistration.objects.get_or_create(
+                    user=user, project=project
+                )
+                
+                if created:
+                    return Response({
+                        'message': 'Successfully joined project',
+                        'registration': ProjectRegistrationSerializer(registration).data
+                    }, status=status.HTTP_201_CREATED)
+                else:
+                    return Response({'message': 'Already registered for this project'})
+                    
+        except Exception:
+            return Response({'error': 'Failed to join project'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['delete'])
+    def leave(self, request, pk=None):
+        """Leave/Unregister from a project"""
+        project = self.get_object()
+        try:
+            registration = ProjectRegistration.objects.get(
+                user=request.user, project=project
+            )
+            registration.delete()
+            return Response({'message': 'Successfully left project'})
+        except ProjectRegistration.DoesNotExist:
+            return Response({'error': 'Not registered for this project'}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get'])
+    def registrations(self, request, pk=None):
+        """Get project registrations (Leaders only)"""
+        project = self.get_object()
+        
+        # Check if user is project admin
+        if project.admin != request.user:
+            return Response({'error': 'Only project admin can view registrations'}, status=status.HTTP_403_FORBIDDEN)
+        
+        registrations = project.registrations.all()
+        serializer = ProjectRegistrationSerializer(registrations, many=True)
+        return Response({
+            'project': project.title,
+            'total_registered': registrations.count(),
+            'registrations': serializer.data
+        })
+
 
 class ProjectSkillViewSet(viewsets.ModelViewSet):
     queryset = ProjectSkill.objects.all()
@@ -287,6 +368,30 @@ def generate_qr_code(request, project_id):
         'message': 'QR code generated successfully',
         'qr_code': serializer.data
     }, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_qr_code(request, project_id):
+    """Get existing QR code for a project (Leaders only)"""
+    project = get_object_or_404(Project, id=project_id)
+
+    # Check if user is project admin (leader)
+    if project.admin != request.user:
+        return Response({"error": "Only project admin can view QR code."}, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        qr_code = ProjectCheckinCode.objects.get(project=project)
+        serializer = ProjectCheckinCodeSerializer(qr_code, context={'request': request})
+        
+        return Response({
+            'qr_code': serializer.data
+        }, status=status.HTTP_200_OK)
+        
+    except ProjectCheckinCode.DoesNotExist:
+        return Response({
+            'error': 'No QR code found for this project. Generate one first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
@@ -428,3 +533,32 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
             if created or not certificate.certificate_file:
                 CertificateService.generate_pdf(certificate)
             return certificate
+
+# Leader Following endpoints
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def follow_leader(request, leader_id):
+    """Follow a project leader"""
+    leader = get_object_or_404(User, id=leader_id, role='leader')
+    
+    if leader == request.user:
+        return Response({'error': 'Cannot follow yourself'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    following, created = LeaderFollowing.objects.get_or_create(
+        follower=request.user, leader=leader
+    )
+    
+    if created:
+        return Response({'message': 'Successfully followed leader'}, status=status.HTTP_201_CREATED)
+    return Response({'message': 'Already following this leader'})
+
+@api_view(['DELETE'])
+@permission_classes([permissions.IsAuthenticated])
+def unfollow_leader(request, leader_id):
+    """Unfollow a project leader"""
+    try:
+        following = LeaderFollowing.objects.get(follower=request.user, leader_id=leader_id)
+        following.delete()
+        return Response({'message': 'Successfully unfollowed leader'})
+    except LeaderFollowing.DoesNotExist:
+        return Response({'error': 'Not following this leader'}, status=status.HTTP_400_BAD_REQUEST)

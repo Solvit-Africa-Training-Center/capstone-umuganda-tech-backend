@@ -80,3 +80,52 @@ def create_project_reminder(project):
         )
 
     Notification.objects.bulk_create(notifications)
+
+# ---------------------------------------
+# for leader notification
+# ---------------------------------------
+
+def notify_registered_users(project, notification_type="project_reminder"):
+    """Notify users who registered for project updates"""
+    from apps.projects.models import ProjectRegistration
+    
+    registered_users = User.objects.filter(
+        project_registrations__project=project,
+        project_registrations__status='registered'
+    )
+    
+    notifications = []
+    for user in registered_users:
+        if notification_type == "project_reminder":
+            title = "Project Reminder"
+            message = f"Reminder: '{project.title}' is happening soon!"
+        elif notification_type == "project_update":
+            title = "Project Update"
+            message = f"Update for '{project.title}' you joined"
+        
+        notifications.append(Notification(
+            user=user, title=title, message=message, #type: ignore
+            notification_type=notification_type, project=project
+        ))
+    
+    Notification.objects.bulk_create(notifications)
+
+# ---------------------
+
+def notify_leader_followers(leader, project):
+    """Notify followers when leader creates new project"""
+    from apps.projects.models import LeaderFollowing
+    
+    followers = User.objects.filter(following_leaders__leader=leader)
+    
+    notifications = []
+    for follower in followers:
+        notifications.append(Notification(
+            user=follower,
+            title="New Project from Leader",
+            message=f"Leader you follow created '{project.title}'",
+            notification_type="leader_new_project",
+            project=project
+        ))
+    
+    Notification.objects.bulk_create(notifications)

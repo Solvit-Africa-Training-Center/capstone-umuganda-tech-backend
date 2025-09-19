@@ -20,7 +20,8 @@ from django.db import models
 from apps.notifications.utils import create_project_notification
 from datetime import datetime, timedelta
 from .services import CertificateService,GamificationService
-
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()

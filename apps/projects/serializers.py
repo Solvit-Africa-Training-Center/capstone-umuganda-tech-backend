@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Project, ProjectSkill, Attendance,ProjectCheckinCode, ProjectCategory,Certificate
+from .models import Project, ProjectSkill, Attendance, ProjectCheckinCode, ProjectCategory, Certificate, ProjectImpact, ProjectRegistration, LeaderFollowing
+
 
 # -------------------------------
 # Project Skill Serializer
@@ -27,12 +28,25 @@ class ProjectSerializer(serializers.ModelSerializer):
     volunteer_count = serializers.SerializerMethodField()
     is_user_registered = serializers.SerializerMethodField()
     admin_name = serializers.SerializerMethodField()
+    registered_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
-        fields = ["id", "title", "description", "sector", "datetime", "location",
-                  "required_volunteers", "image_url", "admin", "admin_name", "status", "created_at", "skills", "volunteer_count", "is_user_registered"]
-        read_only_fields = ["created_at"]
+        fields = [
+            'id', 'title', 'description', 'sector', 'datetime', 'location',
+            'required_volunteers', 'status', 'admin', 'admin_name', 
+            'image_url', 'volunteer_count', 'registered_count', 
+            'is_user_registered','skills', 'created_at'
+        ]
+        read_only_fields = ['admin', 'created_at', 'volunteer_count', 'registered_count', 'is_user_registered']
+    def get_registered_count(self, obj):
+        return obj.registrations.count()
+    
+    def get_is_user_registered(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.registrations.filter(user=request.user).exists()
+        return False
 
     def get_image_url(self, obj):
         if obj.image:
@@ -44,12 +58,6 @@ class ProjectSerializer(serializers.ModelSerializer):
     
     def get_volunteer_count(self, obj):
         return Attendance.objects.filter(project=obj).values('user').distinct().count()
-    
-    def get_is_user_registered(self, obj):
-        request =self.context.get('request')
-        if request and request.user.is_authenticated:
-            return Attendance.objects.filter(project=obj, user=request.user).exists()
-        return False
     
     def get_admin_name(self, obj):
         return f"{obj.admin.first_name or ''} {obj.admin.last_name or ''}".strip() or obj.admin.phone_number
@@ -124,3 +132,29 @@ class CertificateSerializer(serializers.ModelSerializer):
         if obj.certificate_file:
             return self.context['request'].build_absolute_uri(obj.certificate_file.url)
         return obj.file_url
+
+
+# -------------------------------
+# Project Category Serializer
+# -------------------------------
+class ProjectRegistrationSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ProjectRegistration
+        fields = ['id', 'user', 'user_name', 'project', 'registered_at', 'status']
+        read_only_fields = ['registered_at']
+    
+    def get_user_name(self, obj):
+        return f"{obj.user.first_name} {obj.user.last_name}".strip() or obj.user.phone_number
+
+class LeaderFollowingSerializer(serializers.ModelSerializer):
+    leader_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = LeaderFollowing
+        fields = ['id', 'follower', 'leader', 'leader_name', 'followed_at']
+        read_only_fields = ['followed_at']
+    
+    def get_leader_name(self, obj):
+        return f"{obj.leader.first_name} {obj.leader.last_name}".strip() or obj.leader.phone_number

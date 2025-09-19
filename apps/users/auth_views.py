@@ -1,6 +1,6 @@
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.password_validation import validate_password
@@ -15,7 +15,7 @@ from django.conf import settings
 import logging 
 
 # Add logger for debug
-logger = logging.getLogger(__name__)    
+logger = logging.getLogger(__name__)  
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -129,11 +129,58 @@ def complete_registration(request):
         'message': 'Registration completed successfully'
     }, status=status.HTTP_201_CREATED)
 
+# Complete registration of leader
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def complete_leader_registration(request):
+    """" Step 3: Complete LEADER registration with verified phone """
+    phone_number = request.data.get('phone_number')
+    password = request.data.get('password')
+    first_name = request.data.get('first_name')
+    last_name = request.data.get('last_name')
+    sector = request.data.get('sector')
+    experience = request.data.get('experience', '')
+
+    if not all([phone_number, password, first_name, last_name, sector]):
+        return Response({'error': 'All fields are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if OTP was verified
+    verified_otp = OTP.objects.filter(phone_number=phone_number, is_verified=True).first()
+    if not verified_otp:
+        return Response({'error': 'Phone number not verified. Please verify OTP first.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Validate password
+    try:
+        validate_password(password)
+    except ValidationError as e:
+        return Response({'password': e.messages}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Create user with LEader role
+    user = User.objects.create_user(  #type: ignore
+        phone_number=phone_number,
+        first_name=first_name,
+        last_name=last_name,
+        role='leader'
+    )
+    user.set_password(password)
+    user.is_verified = True
+    user.sector = sector
+    user.save()
+
+    # Generate JWT tokens
+    refresh = RefreshToken.for_user(user)
+    return Response({
+        'access': str(refresh.access_token),
+        'refresh': str(refresh),
+        'user': UserSerializer(user).data,
+        'message': 'Leader registration completed successfully'
+    }, status=status.HTTP_201_CREATED)
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def make_superuser(request):
     """ Make user  superuser - Will be removed in """
-    phone_number = request.data.get('phone_number', '7880000000')
+    phone_number = request.data.get('phone_number', '788000000')
 
     try: 
         user = User.objects.get(phone_number=phone_number)
@@ -202,3 +249,104 @@ def resend_otp(request):
     # Include OTP in development mode only
     # if settings.DEBUG:
     #     response_data["otp_code"] = otp.code
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def make_migrations(request):
+    """TEMPORARY: Create and apply migrations"""
+    try:
+        from django.core.management import call_command
+        from io import StringIO
+        
+        out = StringIO()
+        
+        # Step 1: Create migrations with --noinput flag
+        call_command('makemigrations', '--noinput', stdout=out)
+        
+        # Step 2: Apply migrations
+        call_command('migrate', '--noinput', stdout=out)
+        
+        return Response({
+            'message': 'Migrations created and applied successfully',
+            'output': out.getvalue()
+        })
+    except Exception as e:
+        return Response({
+            'error': str(e),
+            'message': 'Migration failed'
+        }, status=500)
+
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def force_migrate(request):
+    """TEMPORARY: Force run migrations (REMOVE IN PRODUCTION)"""
+    try:
+        from django.core.management import call_command
+        from io import StringIO
+        
+        # Capture output
+        out = StringIO()
+        
+        # Try different migration approaches
+        try:
+            # First try regular migrate
+            call_command('migrate', stdout=out)
+        except Exception as e1:
+            try:
+                # Then try with --run-syncdb (note the correct spelling)
+                call_command('migrate', '--run-syncdb', stdout=out)
+            except Exception as e2:
+                # Finally try makemigrations then migrate
+                call_command('makemigrations', stdout=out)
+                call_command('migrate', stdout=out)
+        
+        return Response({
+            'message': 'Migrations completed successfully',
+            'output': out.getvalue()
+        })
+    except Exception as e:
+        return Response({
+            'error': str(e),
+            'message': 'Migration failed'
+        }, status=500)
+    
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_database(request):
+    """NUCLEAR OPTION: Reset all migrations and recreate database"""
+    try:
+        from django.core.management import call_command
+        from io import StringIO
+        
+        out = StringIO()
+        
+        # Step 1: Reset all app migrations to zero
+        call_command('migrate', 'users', 'zero', '--noinput', stdout=out)
+        call_command('migrate', 'projects', 'zero', '--noinput', stdout=out)
+        call_command('migrate', 'community', 'zero', '--noinput', stdout=out)
+        call_command('migrate', 'notifications', 'zero', '--noinput', stdout=out)
+        
+        # Step 2: Delete all migration files (simulate)
+        # This will be handled by recreating migrations
+        
+        # Step 3: Create fresh migrations
+        call_command('makemigrations', 'users', '--noinput', stdout=out)
+        call_command('makemigrations', 'projects', '--noinput', stdout=out)
+        call_command('makemigrations', 'community', '--noinput', stdout=out)
+        call_command('makemigrations', 'notifications', '--noinput', stdout=out)
+        
+        # Step 4: Apply all migrations
+        call_command('migrate', '--noinput', stdout=out)
+        
+        return Response({
+            'message': 'Database reset and recreated successfully',
+            'output': out.getvalue()
+        })
+    except Exception as e:
+        return Response({
+            'error': str(e),
+            'message': 'Database reset failed'
+        }, status=500)

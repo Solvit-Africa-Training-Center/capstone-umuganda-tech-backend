@@ -253,12 +253,15 @@ class GamificationService:
 
     @staticmethod
     def _draw_trophy(draw, cx, cy, color):
+        # Trophy cup
         draw.ellipse([cx-15, cy-20, cx+15, cy-5], fill=color)
+        # Trophy base
         draw.rectangle([cx-20, cy-5, cx+20, cy+5], fill=color)
+        # Trophy stem
         draw.rectangle([cx-10, cy+5, cx+10, cy+15], fill=color)
-        draw.arc([cx-25, cy-15, cx-10, cy+5], outline=color, width=3)
-        draw.arc([cx+10, cy-15, cx+25, cy+5], outline=color, width=3)
-
+        # Trophy handles (simple rectangles - no arcs)
+        draw.rectangle([cx-25, cy-10, cx-20, cy-5], fill=color)  # Left handle
+        draw.rectangle([cx+20, cy-10, cx+25, cy-5], fill=color)  # Right handle
     @staticmethod
     def _draw_crown(draw, cx, cy, color):
         points = [(cx-20, cy+5), (cx-10, cy-15), (cx, cy-5), (cx+10, cy-20), (cx+20, cy+5)]

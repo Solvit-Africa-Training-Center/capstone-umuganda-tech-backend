@@ -13,10 +13,13 @@ from apps.users.permissions import IsOwnerOrAdmin
 from .services import CertificateService
 from django.db import models
 from apps.notifications.utils import create_project_notification
-from datetime import datetime, timedelta
-
-
+from datetime import timedelta
+from django.db.models import Q, Count, Sum, F
+from .models import Project, ProjectSkill, Attendance, ProjectCheckinCode, Certificate
+from apps.users.permissions import IsLeaderOrAdmin
 from .services import CertificateService,GamificationService
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
@@ -26,7 +29,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
     # filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     # filterset_fields = ['status', 'location']
     # search_fields = ['title', 'description', 'location']
-
+    @swagger_auto_schema(
+        operation_description="Smart project discovery based on user preferences",
+        manual_parameters=[
+            openapi.Parameter('location', openapi.IN_QUERY, 
+                            description="Filter by location", type=openapi.TYPE_STRING),
+        ],
+        responses={200: ProjectSerializer(many=True)})
 
     def get_queryset(self):  #type: ignore
         queryset = Project.objects.all()
@@ -60,7 +69,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(datetime__lte=date_to)
 
         return queryset.order_by('-created_at')
-    
+    @swagger_auto_schema(
+        operation_description="Smart project discovery based on user preferences",
+        manual_parameters=[
+            openapi.Parameter('location', openapi.IN_QUERY, 
+                            description="Filter by location", type=openapi.TYPE_STRING),
+        ],
+        responses={200: ProjectSerializer(many=True)}
+    )
     @action(detail=False, methods=['get'])
     def discover(self, request):
         """ Smart project discovery based on user profile and preferences """
@@ -101,6 +117,25 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'urgent': ProjectSerializer(urgent, many=True, context={'request': request}).data,
             'recent': ProjectSerializer(recent, many=True, context={'request': request}).data,
               })
+    @swagger_auto_schema(
+        operation_description="Get search suggestions for autocomplete",
+        manual_parameters=[
+            openapi.Parameter('q', openapi.IN_QUERY, 
+                            description="Search query (min 2 characters)", 
+                            type=openapi.TYPE_STRING, required=True),
+        ],
+        responses={
+            200: openapi.Response('Search suggestions', examples={
+                'application/json': {
+                    'suggestion': {
+                        'locations': ['Kigali', 'Butare'],
+                        'titles': ['Clean Environment', 'Health Campaign'],
+                        'sectors': ['Environment', 'Health']
+                    }
+                }
+            })
+        }
+    )
     @action(detail=False, methods=['get'])
     def search_suggestions(self, request):
         """ Search suggections for autocomplete functionality """
@@ -131,6 +166,21 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 'sectors': list(set(sectors))
              }
         })
+    
+    @swagger_auto_schema(
+        operation_description="Get projects with advanced sorting and filtering",
+        manual_parameters=[
+            openapi.Parameter('search', openapi.IN_QUERY, description="Search term", type=openapi.TYPE_STRING),
+            openapi.Parameter('status', openapi.IN_QUERY, description="Project status", type=openapi.TYPE_STRING),
+            openapi.Parameter('location', openapi.IN_QUERY, description="Location filter", type=openapi.TYPE_STRING),
+            openapi.Parameter('sort_by', openapi.IN_QUERY, description="Sort field", type=openapi.TYPE_STRING,
+                            enum=['created_at', 'datetime', 'title', 'volunteer_count', 'required_volunteers', 'urgency']),
+            openapi.Parameter('order', openapi.IN_QUERY, description="Sort order", type=openapi.TYPE_STRING,
+                            enum=['asc', 'desc'], default='desc'),
+            openapi.Parameter('page_size', openapi.IN_QUERY, description="Items per page", type=openapi.TYPE_INTEGER, default=10),
+            openapi.Parameter('page', openapi.IN_QUERY, description="Page number", type=openapi.TYPE_INTEGER, default=1),
+        ]
+    )
     
     @action(detail=False, methods=['get'])
     def sorted_projects(self, request):
@@ -199,15 +249,158 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'total_pages': (total_count + page_size - 1) // page_size,
             'results': ProjectSerializer(projects, many=True, context={'request': request}).data
         })
+        
 
     def perform_create(self, serializer):
         project = serializer.save(admin=self.request.user)
         create_project_notification(project, "project_created")
     
+    #Dealing with reporting feature where admin can track a report
+    @swagger_auto_schema(
+    method='get',
+    operation_description="Generate advanced reports with filters",
+    manual_parameters=[
+        openapi.Parameter('type', openapi.IN_QUERY, description="Report type", type=openapi.TYPE_STRING, 
+                         enum=['participation', 'completion', 'impact'], default='participation'),
+        openapi.Parameter('start_date', openapi.IN_QUERY, description="Start date (YYYY-MM-DD)", type=openapi.TYPE_STRING),
+        openapi.Parameter('end_date', openapi.IN_QUERY, description="End date (YYYY-MM-DD)", type=openapi.TYPE_STRING),
+        openapi.Parameter('location', openapi.IN_QUERY, description="Filter by location", type=openapi.TYPE_STRING),
+        openapi.Parameter('project_type', openapi.IN_QUERY, description="Filter by sector", type=openapi.TYPE_STRING),
+        openapi.Parameter('status', openapi.IN_QUERY, description="Filter by status", type=openapi.TYPE_STRING),
+        openapi.Parameter('skill', openapi.IN_QUERY, description="Filter by skill", type=openapi.TYPE_STRING),
+    ],
+    responses={
+        200: openapi.Response('Success', examples={
+            'application/json': {
+                'type': 'participation',
+                'data': [
+                    {
+                        'user_name': 'John Doe',
+                        'phone_number': '+250123456789',
+                        'total_projects': 3,
+                        'total_hours': 12.5,
+                        'completed_projects': 2
+                    }
+                ]
+            }
+        }),
+        403: 'Permission denied'
+    }
+)
+    @action(detail=False, methods=['get'], permission_classes=[IsLeaderOrAdmin])
+    def reports(self, request):
+        """Advanced reporting with filters"""
+        report_type = request.query_params.get('type', 'participation')
+        user= request.user
+        # Base filters (reuse existing logic)
+        queryset = Project.objects.all()
+        attendance_qs = Attendance.objects.select_related('user', 'project')
+        # Apply role-based filtering
+        if user.role =='leader':
+            # Leaders only see their own projects
+            queryset = queryset.filter(admin=user)
+            attendance_qs = attendance_qs.filter(project__admin=user)
+
+        
+        # Apply date filters
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        if start_date:
+            queryset = queryset.filter(created_at__gte=start_date)
+            attendance_qs = attendance_qs.filter(check_in_time__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(created_at__lte=end_date)
+            attendance_qs = attendance_qs.filter(check_in_time__lte=end_date)
+        
+        # Apply existing filters
+        location = request.query_params.get('location')
+        if location:
+            queryset = queryset.filter(location__icontains=location)
+        
+        project_type = request.query_params.get('project_type')
+        if project_type:
+            queryset = queryset.filter(sector__icontains=project_type)
+        
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        skill = request.query_params.get('skill')
+        if skill:
+            from apps.users.models import UserSkill
+            skill_users = UserSkill.objects.filter(skill__name__icontains=skill).values_list('user_id', flat=True)
+            attendance_qs = attendance_qs.filter(user_id__in=skill_users)
+        
+        # Generate reports based on type
+        if report_type == 'participation':
+            data = attendance_qs.values('user_id', 'user__first_name', 'user__last_name', 'user__phone_number').annotate(
+                total_projects=Count('project', distinct=True),
+                total_hours=Sum(F('check_out_time') - F('check_in_time'), filter=Q(check_out_time__isnull=False)),
+                completed_projects=Count('project', filter=Q(project__status='completed'), distinct=True)
+            )
+            
+            return Response({
+                'type': 'participation',
+                'data': [{
+                    'user_name': f"{item['user__first_name'] or ''} {item['user__last_name'] or ''}".strip(),
+                    'phone_number': item['user__phone_number'],
+                    'total_projects': item['total_projects'],
+                    'total_hours': round(item['total_hours'].total_seconds() / 3600, 2) if item['total_hours'] else 0,
+                    'completed_projects': item['completed_projects']
+                } for item in data]
+            })
+        
+        elif report_type == 'completion':
+            data = queryset.annotate(
+                total_volunteers=Count('attendances__user', distinct=True)
+            ).values('id', 'title', 'status', 'location', 'sector', 'required_volunteers', 'total_volunteers')
+            
+            return Response({
+                'type': 'completion',
+                'data': [{
+                    'title': item['title'],
+                    'status': item['status'],
+                    'completion_rate': round((item['total_volunteers'] / item['required_volunteers'] * 100) if item['required_volunteers'] else 0, 2),
+                    'location': item['location'],
+                    'sector': item['sector']
+                } for item in data]
+            })
+        
+        else:  # impact report
+            total_projects = queryset.count()
+            completed_projects = queryset.filter(status='completed').count()
+            total_volunteers = attendance_qs.values('user').distinct().count()
+            
+            return Response({
+                'type': 'impact',
+                'data': {
+                    'total_projects': total_projects,
+                    'completed_projects': completed_projects,
+                    'total_volunteers': total_volunteers,
+                    'projects_by_sector': dict(queryset.values('sector').annotate(count=Count('id')).values_list('sector', 'count')),
+                    'projects_by_location': dict(queryset.exclude(location__isnull=True).values('location').annotate(count=Count('id')).values_list('location', 'count'))
+                }
+            })
+
     def perform_update(self, serializer):
         project = serializer.save()
         create_project_notification(project, "project_update")
-
+    @swagger_auto_schema(
+        operation_description="Get dashboard statistics",
+        responses={
+            200: openapi.Response('Dashboard data', examples={
+                'application/json': {
+                    'status': {
+                        'total_projects': 25,
+                        'active_projects': 8,
+                        'completed_projects': 15,
+                        'total_volunteers': 120
+                    },
+                    'recent_projects': []
+                }
+            })
+        }
+    )
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
         """ Dashboard statistics for frontend """
@@ -228,7 +421,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 'recent_projects': ProjectSerializer(recent_projects, many=True, context={'request': request}).data
 
         })
-    
+    @swagger_auto_schema(
+        operation_description="Get projects for current user (created or attended)",
+        responses={200: ProjectSerializer(many=True)})
     @action(detail=False, methods=['get'])
     def my_projects(self, request):
         """ List of projects created by current user """
@@ -243,8 +438,11 @@ class ProjectViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(projects, many=True)
         return Response(serializer.data)
     
-
 class ProjectSkillViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing ProjectSkill objects.
+    Provides CRUD operations for project skills.
+    """
     queryset = ProjectSkill.objects.all()
     serializer_class = ProjectSkillSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -268,7 +466,15 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         else:
             # Volunteers can only see their own attendance
             return Attendance.objects.filter(user=user)
-        
+@swagger_auto_schema(
+    method='post',
+    operation_description="Generate QR code for project check-in (Project admin only)",
+    responses={
+        200: openapi.Response('QR code generated', ProjectCheckinCodeSerializer),
+        403: 'Only project admin can generate QR code',
+        404: 'Project not found'
+    }
+)        
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def generate_qr_code(request, project_id):
@@ -287,6 +493,17 @@ def generate_qr_code(request, project_id):
         'message': 'QR code generated successfully',
         'qr_code': serializer.data
     }, status=status.HTTP_200_OK)
+
+
+@swagger_auto_schema(
+    method='post',
+    operation_description="Check-in to a project using QR code",
+    request_body=CheckinSerializer,
+    responses={
+        200: openapi.Response('Check-in successful', AttendanceSerializer),
+        400: 'Invalid QR code or already checked in'
+    }
+)
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
@@ -319,7 +536,18 @@ def checkin(request):
             'attendance': AttendanceSerializer(attendance).data
         }, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
+#Checkout
+
+@swagger_auto_schema(
+    method='post',
+    operation_description="Check-out from a project using QR code",
+    request_body=CheckinSerializer,
+    responses={
+        200: openapi.Response('Check-out successful', AttendanceSerializer),
+        400: 'Invalid QR code or no active check-in found'
+    }
+)   
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def checkout(request):
@@ -363,6 +591,21 @@ def checkout(request):
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+#Making Attendance
+
+@swagger_auto_schema(
+    method='get',
+    operation_description="Get attendance records for a specific project",
+    responses={
+        200: openapi.Response('Project attendance data', examples={
+            'application/json': {
+                'project': 'Clean Environment Project',
+                'attendances': []
+            }
+        }),
+        404: 'Project not found'
+    }
+)
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def project_attendance(request, project_id):

@@ -9,7 +9,7 @@ from .api_docs import api_overview
 
 
 router = DefaultRouter()
-router.register(r'projects', ProjectViewSet)
+router.register(r'', ProjectViewSet, basename='project')
 router.register(r'project-skills', ProjectSkillViewSet)
 router.register(r'attendances', AttendanceViewSet)
 router.register(r'certificates', CertificateViewSet, basename='certificate')

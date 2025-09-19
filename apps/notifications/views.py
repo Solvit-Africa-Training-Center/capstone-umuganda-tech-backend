@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from .models import Notification, NotificationLog
 from .serializers import NotificationSerializer, NotificationLogSerializer, MarkAsReadSerializer
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 class NotificationViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
@@ -15,6 +17,25 @@ class NotificationViewSet(viewsets.ModelViewSet):
     
     def get_serializer_context(self):
         return {'request': self.request}
+    @swagger_auto_schema(
+        operation_description="Get only unread notifications for current user",
+        responses={
+            200: openapi.Response('Unread notifications', examples={
+                'application/json': {
+                    'count': 5,
+                    'notifications': [
+                        {
+                            'id': 1,
+                            'title': 'New Project Available',
+                            'message': 'A new project has been created in your area',
+                            'is_read': False,
+                            'created_at': '2024-01-15T10:30:00Z'
+                        }
+                    ]
+                }
+            })
+        }
+    )
     
     @action(detail=False, methods=['get'])
     def unread(self, request):
@@ -26,6 +47,17 @@ class NotificationViewSet(viewsets.ModelViewSet):
             'notifications': serializer.data
         })
     
+    @swagger_auto_schema(
+        operation_description="Mark a single notification as read",
+        responses={
+            200: openapi.Response('Success', examples={
+                'application/json': {
+                    'message': 'Notification marked as read'
+                }
+            }),
+            404: 'Notification not found'
+        }
+    )
     @action(detail=True, methods=['post'])
     def mark_as_read(self, request, pk=None):
         """ Mark a single notification as read """
@@ -34,6 +66,17 @@ class NotificationViewSet(viewsets.ModelViewSet):
         notification.save()
         return Response({'message': 'Notification marked as read'})
     
+    @swagger_auto_schema(
+        operation_description="Mark all unread notifications as read for current user",
+        responses={
+            200: openapi.Response('Success', examples={
+                'application/json': {
+                    'message': '5 notifications marked as read',
+                    'updated_count': 5
+                }
+            })
+        }
+    )
     @action(detail=False, methods=['post'])
     def mark_all_as_read(self, request):
         """ Mark all unread notifications as read """
@@ -42,6 +85,20 @@ class NotificationViewSet(viewsets.ModelViewSet):
             'message': f'{updated_count} notifications marked as read',
             'updated_count': updated_count
         })
+    
+    @swagger_auto_schema(
+        operation_description="Mark multiple specific notifications as read",
+        request_body=MarkAsReadSerializer,
+        responses={
+            200: openapi.Response('Success', examples={
+                'application/json': {
+                    'message': '3 notifications marked as read',
+                    'count': 3
+                }
+            }),
+            400: 'Invalid notification IDs'
+        }
+    )
     
     @action(detail=False, methods=['post'])
     def mark_multiple_as_read(self, request):
@@ -57,11 +114,19 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
-    """ Read-only viewset for notification logs (SMS/EMAIL) """
+    """Read-only viewset for notification delivery logs.
+    
+    Shows SMS/Email delivery status and history for current user.
+      """
     queryset = NotificationLog.objects.all()
     serializer_class = NotificationLogSerializer
     permission_classes = [permissions.IsAuthenticated]
-
+    
+    @swagger_auto_schema(
+        operation_description="Get notification delivery logs for current user",
+        responses={200: NotificationLogSerializer(many=True)}
+    )
+    
     def get_queryset(self): #type: ignore
         # only return logs for the current user
         return NotificationLog.objects.filter(user=self.request.user)

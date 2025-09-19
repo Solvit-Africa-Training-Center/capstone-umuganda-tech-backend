@@ -7,7 +7,21 @@ from PIL import Image
 import os
 from .models import User
 from .serializers import UserSerializer
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
+@swagger_auto_schema(
+    method='post',
+    operation_description="Upload user avatar image",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'avatar': openapi.Schema(type=openapi.TYPE_FILE, description='Avatar image (max 5MB)'),
+        },
+        required=['avatar']
+    ),
+    responses={200: 'Avatar uploaded successfully', 400: 'Invalid file'}
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def upload_avatar(request):
@@ -44,6 +58,12 @@ def upload_avatar(request):
         'avatar_url': request.build_absolute_uri(user.avatar.url) if user.avatar else None,
         'user': UserSerializer(user, context={'request': request}).data
     }, status=status.HTTP_200_OK)
+
+@swagger_auto_schema(
+    method='delete',
+    operation_description="Delete user avatar image",
+    responses={200: 'Avatar deleted successfully', 400: 'No avatar to delete'}
+)
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])

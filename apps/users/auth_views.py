@@ -10,7 +10,23 @@ from .serializers import (
     RegisterSerializer,
     LoginSerializer, UserSerializer
 )
-
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+@swagger_auto_schema(
+    method='post',
+    operation_description="Register a new user with phone number",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'phone_number': openapi.Schema(type=openapi.TYPE_STRING, description='Phone number'),
+        },
+        required=['phone_number']
+    ),
+    responses={
+        200: 'OTP sent successfully',
+        400: 'Invalid phone number or user already exists'
+    }
+)
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register(request):
@@ -28,6 +44,22 @@ def register(request):
             "otp": otp.code  # for development only
         }, status=status.HTTP_200_OK)
      return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+@swagger_auto_schema(
+    method='post',
+    operation_description="Verify OTP code",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'phone_number': openapi.Schema(type=openapi.TYPE_STRING),
+            'otp_code': openapi.Schema(type=openapi.TYPE_STRING),
+        },
+        required=['phone_number', 'otp_code']
+    ),
+    responses={
+        200: 'OTP verified successfully',
+        400: 'Invalid or expired OTP'
+    }
+)
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -56,6 +88,15 @@ def verify_otp(request):
         
     except OTP.DoesNotExist:
         return Response({'error': 'Invalid OTP.'}, status=status.HTTP_400_BAD_REQUEST)
+
+@swagger_auto_schema(
+    method='post',
+    operation_description="Complete user registration with profile details",
+    responses={
+        201: 'User registered successfully',
+        400: 'Invalid data'
+    }
+)    
     
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -103,6 +144,32 @@ def complete_registration(request):
         'message': 'Registration completed successfully'
     }, status=status.HTTP_201_CREATED)
 
+@swagger_auto_schema(
+    method='post',
+    operation_description="Login user with phone number and password",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'phone_number': openapi.Schema(type=openapi.TYPE_STRING),
+            'password': openapi.Schema(type=openapi.TYPE_STRING),
+        },
+        required=['phone_number', 'password']
+    ),
+    responses={
+        200: openapi.Response('Login successful', examples={
+            'application/json': {
+                'access': 'jwt_access_token',
+                'refresh': 'jwt_refresh_token',
+                'user': {
+                    'id': 1,
+                    'phone_number': '+250123456789',
+                    'role': 'volunteer'
+                }
+            }
+        }),
+        401: 'Invalid credentials'
+    }
+)
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -121,6 +188,27 @@ def login(request):
         }, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+@swagger_auto_schema(
+    method='post',
+    operation_description="Resend OTP code to phone number",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'phone_number': openapi.Schema(type=openapi.TYPE_STRING, description='Phone number'),
+        },
+        required=['phone_number']
+    ),
+    responses={
+        200: openapi.Response('OTP resent successfully', examples={
+            'application/json': {
+                'message': 'OTP resent successfully.',
+                'otp_code': '123456'
+            }
+        }),
+        400: 'Phone number is required'
+    }
+)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def resend_otp(request):

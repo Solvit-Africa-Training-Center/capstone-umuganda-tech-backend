@@ -7,7 +7,8 @@ import os
 from .models import Project
 from .serializers import ProjectSerializer
 from django.conf import settings
-
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 def is_safe_path(path):
     """ Validate that the path is within the media directory """
     try:
@@ -19,6 +20,31 @@ def is_safe_path(path):
         return abs_path.startswith(media_root)
     except (OSError, ValueError):
         return False
+    
+
+@swagger_auto_schema(
+    method='post',
+    operation_description="Upload project image (Project admin only)",
+    manual_parameters=[
+        openapi.Parameter('project_id', openapi.IN_PATH, description="Project ID", type=openapi.TYPE_INTEGER, required=True),
+    ],
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'image': openapi.Schema(type=openapi.TYPE_FILE, description='Image file (max 10MB)'),
+        },
+        required=['image']
+    ),
+    responses={
+        200: openapi.Response('Image uploaded successfully', examples={
+            'application/json': {
+                'message': 'Project image uploaded successfully.',
+                'image_url': 'http://localhost:8000/media/project_images/example.jpg'
+            }
+        })
+    }
+)
+
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -58,6 +84,24 @@ def upload_project_image(request, project_id):
         'project': ProjectSerializer(project, context={'request': request}).data
     }, status=status.HTTP_200_OK)
 
+@swagger_auto_schema(
+    method='delete',
+    operation_description="Delete project image (Project admin only)",
+    manual_parameters=[
+        openapi.Parameter('project_id', openapi.IN_PATH, description="Project ID", type=openapi.TYPE_INTEGER, required=True),
+    ],
+    responses={
+        200: openapi.Response('Image deleted successfully', examples={
+            'application/json': {
+                'message': 'Project image deleted successfully.',
+                'project': {}
+            }
+        }),
+        400: 'No project image to delete',
+        403: 'Permission denied - not project admin',
+        404: 'Project not found'
+    }
+)
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_project_image(request, project_id):

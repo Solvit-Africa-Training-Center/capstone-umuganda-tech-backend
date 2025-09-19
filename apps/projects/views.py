@@ -5,21 +5,23 @@ from rest_framework.response import Response
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, Count
-from .models import Project, ProjectSkill, Attendance, ProjectCheckinCode,Certificate
+from .models import (
+    Project, ProjectSkill, Attendance, 
+    ProjectCheckinCode,Certificate, ProjectRegistration, 
+    LeaderFollowing)
 from .serializers import (
-    ProjectSerializer, ProjectSkillSerializer, AttendanceSerializer,CertificateSerializer, ProjectCheckinCodeSerializer, CheckinSerializer
+    ProjectSerializer, ProjectSkillSerializer, AttendanceSerializer,CertificateSerializer, ProjectCheckinCodeSerializer, CheckinSerializer,
+    ProjectRegistrationSerializer, LeaderFollowingSerializer
     )
+from apps.users.models import User
 from apps.users.permissions import IsOwnerOrAdmin
 from .services import CertificateService
 from django.db import models
 from apps.notifications.utils import create_project_notification
-from datetime import timedelta
-from django.db.models import Q, Count, Sum, F
-from .models import Project, ProjectSkill, Attendance, ProjectCheckinCode, Certificate
-from apps.users.permissions import IsLeaderOrAdmin
+from datetime import datetime, timedelta
 from .services import CertificateService,GamificationService
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
+
+
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
@@ -254,153 +256,20 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         project = serializer.save(admin=self.request.user)
         create_project_notification(project, "project_created")
+    def get_permissions(self):
+        """Make project detail endpoint public"""
+        if self.action == 'retrieve':
+            return [permissions.AllowAny()]
+        return super().get_permissions()
+    # notifiying the leader follower
+        from apps.notifications.utils import notify_leader_followers
+        notify_leader_followers(self.request.user, project)
     
-    #Dealing with reporting feature where admin can track a report
-    @swagger_auto_schema(
-    method='get',
-    operation_description="Generate advanced reports with filters",
-    manual_parameters=[
-        openapi.Parameter('type', openapi.IN_QUERY, description="Report type", type=openapi.TYPE_STRING, 
-                         enum=['participation', 'completion', 'impact'], default='participation'),
-        openapi.Parameter('start_date', openapi.IN_QUERY, description="Start date (YYYY-MM-DD)", type=openapi.TYPE_STRING),
-        openapi.Parameter('end_date', openapi.IN_QUERY, description="End date (YYYY-MM-DD)", type=openapi.TYPE_STRING),
-        openapi.Parameter('location', openapi.IN_QUERY, description="Filter by location", type=openapi.TYPE_STRING),
-        openapi.Parameter('project_type', openapi.IN_QUERY, description="Filter by sector", type=openapi.TYPE_STRING),
-        openapi.Parameter('status', openapi.IN_QUERY, description="Filter by status", type=openapi.TYPE_STRING),
-        openapi.Parameter('skill', openapi.IN_QUERY, description="Filter by skill", type=openapi.TYPE_STRING),
-    ],
-    responses={
-        200: openapi.Response('Success', examples={
-            'application/json': {
-                'type': 'participation',
-                'data': [
-                    {
-                        'user_name': 'John Doe',
-                        'phone_number': '+250123456789',
-                        'total_projects': 3,
-                        'total_hours': 12.5,
-                        'completed_projects': 2
-                    }
-                ]
-            }
-        }),
-        403: 'Permission denied'
-    }
-)
-    @action(detail=False, methods=['get'], permission_classes=[IsLeaderOrAdmin])
-    def reports(self, request):
-        """Advanced reporting with filters"""
-        report_type = request.query_params.get('type', 'participation')
-        user= request.user
-        # Base filters (reuse existing logic)
-        queryset = Project.objects.all()
-        attendance_qs = Attendance.objects.select_related('user', 'project')
-        # Apply role-based filtering
-        if user.role =='leader':
-            # Leaders only see their own projects
-            queryset = queryset.filter(admin=user)
-            attendance_qs = attendance_qs.filter(project__admin=user)
-
-        
-        # Apply date filters
-        start_date = request.query_params.get('start_date')
-        end_date = request.query_params.get('end_date')
-        if start_date:
-            queryset = queryset.filter(created_at__gte=start_date)
-            attendance_qs = attendance_qs.filter(check_in_time__gte=start_date)
-        if end_date:
-            queryset = queryset.filter(created_at__lte=end_date)
-            attendance_qs = attendance_qs.filter(check_in_time__lte=end_date)
-        
-        # Apply existing filters
-        location = request.query_params.get('location')
-        if location:
-            queryset = queryset.filter(location__icontains=location)
-        
-        project_type = request.query_params.get('project_type')
-        if project_type:
-            queryset = queryset.filter(sector__icontains=project_type)
-        
-        status_filter = request.query_params.get('status')
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
-        
-        skill = request.query_params.get('skill')
-        if skill:
-            from apps.users.models import UserSkill
-            skill_users = UserSkill.objects.filter(skill__name__icontains=skill).values_list('user_id', flat=True)
-            attendance_qs = attendance_qs.filter(user_id__in=skill_users)
-        
-        # Generate reports based on type
-        if report_type == 'participation':
-            data = attendance_qs.values('user_id', 'user__first_name', 'user__last_name', 'user__phone_number').annotate(
-                total_projects=Count('project', distinct=True),
-                total_hours=Sum(F('check_out_time') - F('check_in_time'), filter=Q(check_out_time__isnull=False)),
-                completed_projects=Count('project', filter=Q(project__status='completed'), distinct=True)
-            )
-            
-            return Response({
-                'type': 'participation',
-                'data': [{
-                    'user_name': f"{item['user__first_name'] or ''} {item['user__last_name'] or ''}".strip(),
-                    'phone_number': item['user__phone_number'],
-                    'total_projects': item['total_projects'],
-                    'total_hours': round(item['total_hours'].total_seconds() / 3600, 2) if item['total_hours'] else 0,
-                    'completed_projects': item['completed_projects']
-                } for item in data]
-            })
-        
-        elif report_type == 'completion':
-            data = queryset.annotate(
-                total_volunteers=Count('attendances__user', distinct=True)
-            ).values('id', 'title', 'status', 'location', 'sector', 'required_volunteers', 'total_volunteers')
-            
-            return Response({
-                'type': 'completion',
-                'data': [{
-                    'title': item['title'],
-                    'status': item['status'],
-                    'completion_rate': round((item['total_volunteers'] / item['required_volunteers'] * 100) if item['required_volunteers'] else 0, 2),
-                    'location': item['location'],
-                    'sector': item['sector']
-                } for item in data]
-            })
-        
-        else:  # impact report
-            total_projects = queryset.count()
-            completed_projects = queryset.filter(status='completed').count()
-            total_volunteers = attendance_qs.values('user').distinct().count()
-            
-            return Response({
-                'type': 'impact',
-                'data': {
-                    'total_projects': total_projects,
-                    'completed_projects': completed_projects,
-                    'total_volunteers': total_volunteers,
-                    'projects_by_sector': dict(queryset.values('sector').annotate(count=Count('id')).values_list('sector', 'count')),
-                    'projects_by_location': dict(queryset.exclude(location__isnull=True).values('location').annotate(count=Count('id')).values_list('location', 'count'))
-                }
-            })
-
     def perform_update(self, serializer):
         project = serializer.save()
         create_project_notification(project, "project_update")
-    @swagger_auto_schema(
-        operation_description="Get dashboard statistics",
-        responses={
-            200: openapi.Response('Dashboard data', examples={
-                'application/json': {
-                    'status': {
-                        'total_projects': 25,
-                        'active_projects': 8,
-                        'completed_projects': 15,
-                        'total_volunteers': 120
-                    },
-                    'recent_projects': []
-                }
-            })
-        }
-    )
+
+
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
         """ Dashboard statistics for frontend """
@@ -438,6 +307,74 @@ class ProjectViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(projects, many=True)
         return Response(serializer.data)
     
+
+    @action(detail=True, methods=['post'])
+    def join(self, request, pk=None):
+        """Join/Register for a project"""
+        from django.db import transaction
+        
+        project = self.get_object()
+        user = request.user
+        
+        # Check if project is still open for registration
+        if project.status not in ['planned', 'ongoing']:
+            return Response({'error': 'Cannot join this project'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            with transaction.atomic():
+                # Lock the project to prevent race conditions
+                project = Project.objects.select_for_update().get(pk=project.pk)
+                
+                # Check if project is full
+                if project.registrations.count() >= project.required_volunteers:
+                    return Response({'error': 'Project is full'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                registration, created = ProjectRegistration.objects.get_or_create(
+                    user=user, project=project
+                )
+                
+                if created:
+                    return Response({
+                        'message': 'Successfully joined project',
+                        'registration': ProjectRegistrationSerializer(registration).data
+                    }, status=status.HTTP_201_CREATED)
+                else:
+                    return Response({'message': 'Already registered for this project'})
+                    
+        except Exception:
+            return Response({'error': 'Failed to join project'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['delete'])
+    def leave(self, request, pk=None):
+        """Leave/Unregister from a project"""
+        project = self.get_object()
+        try:
+            registration = ProjectRegistration.objects.get(
+                user=request.user, project=project
+            )
+            registration.delete()
+            return Response({'message': 'Successfully left project'})
+        except ProjectRegistration.DoesNotExist:
+            return Response({'error': 'Not registered for this project'}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get'])
+    def registrations(self, request, pk=None):
+        """Get project registrations (Leaders only)"""
+        project = self.get_object()
+        
+        # Check if user is project admin
+        if project.admin != request.user:
+            return Response({'error': 'Only project admin can view registrations'}, status=status.HTTP_403_FORBIDDEN)
+        
+        registrations = project.registrations.all()
+        serializer = ProjectRegistrationSerializer(registrations, many=True)
+        return Response({
+            'project': project.title,
+            'total_registered': registrations.count(),
+            'registrations': serializer.data
+        })
+
+
 class ProjectSkillViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing ProjectSkill objects.
@@ -494,16 +431,29 @@ def generate_qr_code(request, project_id):
         'qr_code': serializer.data
     }, status=status.HTTP_200_OK)
 
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_qr_code(request, project_id):
+    """Get existing QR code for a project (Leaders only)"""
+    project = get_object_or_404(Project, id=project_id)
 
-@swagger_auto_schema(
-    method='post',
-    operation_description="Check-in to a project using QR code",
-    request_body=CheckinSerializer,
-    responses={
-        200: openapi.Response('Check-in successful', AttendanceSerializer),
-        400: 'Invalid QR code or already checked in'
-    }
-)
+    # Check if user is project admin (leader)
+    if project.admin != request.user:
+        return Response({"error": "Only project admin can view QR code."}, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        qr_code = ProjectCheckinCode.objects.get(project=project)
+        serializer = ProjectCheckinCodeSerializer(qr_code, context={'request': request})
+        
+        return Response({
+            'qr_code': serializer.data
+        }, status=status.HTTP_200_OK)
+        
+    except ProjectCheckinCode.DoesNotExist:
+        return Response({
+            'error': 'No QR code found for this project. Generate one first.'
+        }, status=status.HTTP_404_NOT_FOUND)
+
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
@@ -671,3 +621,32 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
             if created or not certificate.certificate_file:
                 CertificateService.generate_pdf(certificate)
             return certificate
+
+# Leader Following endpoints
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def follow_leader(request, leader_id):
+    """Follow a project leader"""
+    leader = get_object_or_404(User, id=leader_id, role='leader')
+    
+    if leader == request.user:
+        return Response({'error': 'Cannot follow yourself'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    following, created = LeaderFollowing.objects.get_or_create(
+        follower=request.user, leader=leader
+    )
+    
+    if created:
+        return Response({'message': 'Successfully followed leader'}, status=status.HTTP_201_CREATED)
+    return Response({'message': 'Already following this leader'})
+
+@api_view(['DELETE'])
+@permission_classes([permissions.IsAuthenticated])
+def unfollow_leader(request, leader_id):
+    """Unfollow a project leader"""
+    try:
+        following = LeaderFollowing.objects.get(follower=request.user, leader_id=leader_id)
+        following.delete()
+        return Response({'message': 'Successfully unfollowed leader'})
+    except LeaderFollowing.DoesNotExist:
+        return Response({'error': 'Not following this leader'}, status=status.HTTP_400_BAD_REQUEST)

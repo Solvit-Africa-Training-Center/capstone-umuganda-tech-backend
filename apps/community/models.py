@@ -10,7 +10,15 @@ class Post(models.Model):
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="posts")
-    project = models.ForeignKey(Project, on_delete=models.SET_NULL, blank=True, null=True, related_name="posts")
+    project = models.ForeignKey(Project, on_delete=models.SET_NULL, blank=True, 
+    null=True, related_name="posts")
+
+    title = models.CharField(max_length=255, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    sector = models.CharField(max_length=255, blank=True, null=True)
+    datetime = models.DateTimeField(blank=True, null=True)
+    location = models.CharField(max_length=255, blank=True, null=True)
+    
     content = models.TextField()
     type = models.CharField(max_length=50, choices=POST_TYPE_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)

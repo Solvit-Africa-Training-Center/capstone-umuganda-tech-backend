@@ -149,3 +149,37 @@ class ProjectImpact(models.Model):
 
     def __str__(self):
         return f"{self.project.title}: {self.value} {self.unit} ({self.metric_name})"
+
+# -------------------------------
+# Project Registration
+# -------------------------------
+class ProjectRegistration(models.Model):
+    """Track users who have joined/registered for projects"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='project_registrations')
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='registrations')
+    registered_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=[
+        ('registered', 'Registered'),
+        ('attended', 'Attended'),
+        ('no_show', 'No Show')
+    ], default='registered')
+    
+    class Meta:
+        unique_together = ('user', 'project')
+        ordering = ['-registered_at']
+    
+    def __str__(self):
+        return f"{self.user.phone_number} registered for {self.project.title}"
+
+class LeaderFollowing(models.Model):
+    """Track users following project leaders"""
+    follower = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following_leaders')
+    leader = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followers')
+    followed_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ('follower', 'leader')
+        ordering = ['-followed_at']
+    
+    def __str__(self):
+        return f"{self.follower.phone_number} follows {self.leader.phone_number}"

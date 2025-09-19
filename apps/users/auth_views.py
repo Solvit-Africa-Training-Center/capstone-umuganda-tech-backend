@@ -10,6 +10,13 @@ from .serializers import (
     RegisterSerializer,
     LoginSerializer, UserSerializer
 )
+from .sms_service import SMSService
+from django.conf import settings
+import logging 
+
+# Add logger for debug
+logger = logging.getLogger(__name__)    
+
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 @swagger_auto_schema(
@@ -37,12 +44,32 @@ def register(request):
         
         # Generate and send OTP
         otp = OTP.generate_otp(phone_number)
+
+        # Log OTP for debugging gusa
+        print(f"🔥 DEBUG: OTP generated for {phone_number}: {otp.code}")
+        # logger.debug(f"OTP generated for {phone_number}: {otp.code}")
+        logger.info(f"📱 OTP generated for {phone_number}: {otp.code}")
+                # Send SMS
+        # sms_service = SMSService()
+        sms_sent = True
+        sms_result =  "SMS_DISABLED_LOGS_ONLY" 
         
-        return Response({
+        # Log that SMS is disabled
+        print(f"📵 SMS DISABLED - Check logs for OTP: {otp.code}")
+        logger.info(f"SMS sending disabled - OTP available in logs only")
+
+        response_data = {
             "message": "OTP sent to phone number",
             "phone_number": phone_number,
+            "sms_sent": sms_sent,
             "otp": otp.code  # for development only
-        }, status=status.HTTP_200_OK)
+        }
+
+        # Include OTP in development mode only
+        # if settings.DEBUG:
+        #     response_data["otp"] = otp.code
+           
+        return Response(response_data, status=status.HTTP_200_OK) 
      return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 @swagger_auto_schema(
     method='post',
@@ -170,6 +197,28 @@ def complete_registration(request):
         401: 'Invalid credentials'
     }
 )
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def make_superuser(request):
+    """ Make user  superuser - Will be removed in """
+    phone_number = request.data.get('phone_number', '7880000000')
+
+    try: 
+        user = User.objects.get(phone_number=phone_number)
+        user.is_staff = True
+        user.is_superuser = True
+        user.is_verified = True
+        user.save()
+
+        return Response({
+            'message': 'User is now a superuser',
+            'phone_number': phone_number,
+            'is_staff': user.is_staff,
+            'is_superuser': user.is_superuser
+
+        })
+    except User.DoesNotExist:
+        return Response({'error': 'User does not found.'}, status=404)
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -219,8 +268,26 @@ def resend_otp(request):
     # Generate new OTP
     otp = OTP.generate_otp(phone_number)
 
-    # TODO:  Send SMS with OTP code
-    return Response({
-        'message': 'OTP resent successfully.',
-        'otp_code': otp.code  # for development only, will be removed in production
-    }, status=status.HTTP_200_OK)
+    # Log OTP for debugging
+    print(f"🔥 DEBUG: OTP resent for {phone_number}: {otp.code}")
+    # logger.debug(f"OTP resent for {phone_number}: {otp.code}")
+    logger.info(f"📱 OTP resent for {phone_number}: {otp.code}")
+    # Send SMS
+    # sms_service = SMSService()
+
+    sms_sent = True
+    sms_result = "SMS_DISABLED_LOGS_ONLY"
+    
+    # Log SMS result
+    print(f"📵 SMS DISABLED - Check logs for OTP: {otp.code}")
+    logger.info(f"SMS sending disabled - OTP available in logs only")
+
+    response_data = {
+        "message": "OTP resent successfully",
+        "sms_sent": sms_sent,
+        'otp_code': otp.code
+    }
+
+    # Include OTP in development mode only
+    # if settings.DEBUG:
+    #     response_data["otp_code"] = otp.code

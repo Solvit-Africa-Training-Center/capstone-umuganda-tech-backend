@@ -20,7 +20,8 @@ from django.db import models
 from apps.notifications.utils import create_project_notification
 from datetime import datetime, timedelta
 from .services import CertificateService,GamificationService
-
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.all()
@@ -31,7 +32,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
     # filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     # filterset_fields = ['status', 'location']
     # search_fields = ['title', 'description', 'location']
-
+    @swagger_auto_schema(
+        operation_description="Smart project discovery based on user preferences",
+        manual_parameters=[
+            openapi.Parameter('location', openapi.IN_QUERY, 
+                            description="Filter by location", type=openapi.TYPE_STRING),
+        ],
+        responses={200: ProjectSerializer(many=True)})
 
     def get_queryset(self):  #type: ignore
         queryset = Project.objects.all()
@@ -65,7 +72,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(datetime__lte=date_to)
 
         return queryset.order_by('-created_at')
-    
+    @swagger_auto_schema(
+        operation_description="Smart project discovery based on user preferences",
+        manual_parameters=[
+            openapi.Parameter('location', openapi.IN_QUERY, 
+                            description="Filter by location", type=openapi.TYPE_STRING),
+        ],
+        responses={200: ProjectSerializer(many=True)}
+    )
     @action(detail=False, methods=['get'])
     def discover(self, request):
         """ Smart project discovery based on user profile and preferences """
@@ -106,6 +120,25 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'urgent': ProjectSerializer(urgent, many=True, context={'request': request}).data,
             'recent': ProjectSerializer(recent, many=True, context={'request': request}).data,
               })
+    @swagger_auto_schema(
+        operation_description="Get search suggestions for autocomplete",
+        manual_parameters=[
+            openapi.Parameter('q', openapi.IN_QUERY, 
+                            description="Search query (min 2 characters)", 
+                            type=openapi.TYPE_STRING, required=True),
+        ],
+        responses={
+            200: openapi.Response('Search suggestions', examples={
+                'application/json': {
+                    'suggestion': {
+                        'locations': ['Kigali', 'Butare'],
+                        'titles': ['Clean Environment', 'Health Campaign'],
+                        'sectors': ['Environment', 'Health']
+                    }
+                }
+            })
+        }
+    )
     @action(detail=False, methods=['get'])
     def search_suggestions(self, request):
         """ Search suggections for autocomplete functionality """
@@ -136,6 +169,21 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 'sectors': list(set(sectors))
              }
         })
+    
+    @swagger_auto_schema(
+        operation_description="Get projects with advanced sorting and filtering",
+        manual_parameters=[
+            openapi.Parameter('search', openapi.IN_QUERY, description="Search term", type=openapi.TYPE_STRING),
+            openapi.Parameter('status', openapi.IN_QUERY, description="Project status", type=openapi.TYPE_STRING),
+            openapi.Parameter('location', openapi.IN_QUERY, description="Location filter", type=openapi.TYPE_STRING),
+            openapi.Parameter('sort_by', openapi.IN_QUERY, description="Sort field", type=openapi.TYPE_STRING,
+                            enum=['created_at', 'datetime', 'title', 'volunteer_count', 'required_volunteers', 'urgency']),
+            openapi.Parameter('order', openapi.IN_QUERY, description="Sort order", type=openapi.TYPE_STRING,
+                            enum=['asc', 'desc'], default='desc'),
+            openapi.Parameter('page_size', openapi.IN_QUERY, description="Items per page", type=openapi.TYPE_INTEGER, default=10),
+            openapi.Parameter('page', openapi.IN_QUERY, description="Page number", type=openapi.TYPE_INTEGER, default=1),
+        ]
+    )
     
     @action(detail=False, methods=['get'])
     def sorted_projects(self, request):
@@ -204,6 +252,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'total_pages': (total_count + page_size - 1) // page_size,
             'results': ProjectSerializer(projects, many=True, context={'request': request}).data
         })
+        
 
     def perform_create(self, serializer):
         project = serializer.save(admin=self.request.user)
@@ -242,7 +291,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 'recent_projects': ProjectSerializer(recent_projects, many=True, context={'request': request}).data
 
         })
-    
+    @swagger_auto_schema(
+        operation_description="Get projects for current user (created or attended)",
+        responses={200: ProjectSerializer(many=True)})
     @action(detail=False, methods=['get'])
     def my_projects(self, request):
         """ List of projects created by current user """
@@ -326,6 +377,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
 
 class ProjectSkillViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing ProjectSkill objects.
+    Provides CRUD operations for project skills.
+    """
     queryset = ProjectSkill.objects.all()
     serializer_class = ProjectSkillSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -349,7 +404,15 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         else:
             # Volunteers can only see their own attendance
             return Attendance.objects.filter(user=user)
-        
+@swagger_auto_schema(
+    method='post',
+    operation_description="Generate QR code for project check-in (Project admin only)",
+    responses={
+        200: openapi.Response('QR code generated', ProjectCheckinCodeSerializer),
+        403: 'Only project admin can generate QR code',
+        404: 'Project not found'
+    }
+)        
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def generate_qr_code(request, project_id):
@@ -424,7 +487,18 @@ def checkin(request):
             'attendance': AttendanceSerializer(attendance).data
         }, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
+#Checkout
+
+@swagger_auto_schema(
+    method='post',
+    operation_description="Check-out from a project using QR code",
+    request_body=CheckinSerializer,
+    responses={
+        200: openapi.Response('Check-out successful', AttendanceSerializer),
+        400: 'Invalid QR code or no active check-in found'
+    }
+)   
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def checkout(request):
@@ -468,6 +542,21 @@ def checkout(request):
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+#Making Attendance
+
+@swagger_auto_schema(
+    method='get',
+    operation_description="Get attendance records for a specific project",
+    responses={
+        200: openapi.Response('Project attendance data', examples={
+            'application/json': {
+                'project': 'Clean Environment Project',
+                'attendances': []
+            }
+        }),
+        404: 'Project not found'
+    }
+)
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def project_attendance(request, project_id):

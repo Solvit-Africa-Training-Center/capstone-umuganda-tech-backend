@@ -5,12 +5,15 @@ from rest_framework import status
 from .models import User, Skill, UserSkill, Badge, UserBadge
 from .serializers import UserSerializer, SkillSerializer, UserSkillSerializer, BadgeSerializer, UserBadgeSerializer
 from apps.projects.models import Attendance, Certificate
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
-
+    
+    @swagger_auto_schema(operation_description="Get current user profile with stats")
     @action(detail=False, methods=['get'])
     def profile(self, request):
         """ Get current user profile """
@@ -43,7 +46,7 @@ class BadgeViewSet(viewsets.ModelViewSet):
     queryset = Badge.objects.all()
     serializer_class = BadgeSerializer
     permission_classes = [permissions.IsAuthenticated]
-
+    @swagger_auto_schema(operation_description="Generate badge images (Admin only)")
     @action(detail=False, methods=['post'])
     def generate_images(self, request):
         """Generate badge images (Admin only)"""
@@ -59,7 +62,7 @@ class BadgeViewSet(viewsets.ModelViewSet):
             })
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+    @swagger_auto_schema(operation_description="Setup default badges (Admin only)")
     @action(detail=False, methods=['post'])
     def setup_default(self, request):
         """Setup default badges with images (Admin only)"""

@@ -17,7 +17,9 @@ def api_overview(request):
             'version': '1.0.0',
             'description': 'Complete API for Umuganda community service platform',
             'base_url': base_url,
-            'documentation_url': f'{base_url}/api/projects/api-overview/',
+            'documentation_url': f'{base_url}/swagger/',  # swagger
+            'interactive_docs': f'{base_url}/swagger/',   # Primary docs
+            'alternative_docs': f'{base_url}/redoc/',     # Alternative
             'admin_panel': f'{base_url}/admin/',
         },
         

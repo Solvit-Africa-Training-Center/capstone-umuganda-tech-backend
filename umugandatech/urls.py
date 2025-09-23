@@ -2,6 +2,8 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import HttpResponseRedirect
+from django.shortcuts import redirect
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -28,6 +30,14 @@ schema_view = get_schema_view(
       - **Admin**: Full system access
       - **Leader**: Can manage projects and view reports
       - **Volunteer**: Can participate in projects
+
+      ## Quick Start
+      1. Register: `POST /api/users/auth/register/`
+      2. Verify OTP: `POST /api/users/auth/verify-otp/`
+      3. Complete Registration as volunteer: `POST /api/users/auth/complete-registration/`
+      4. Complete Registration as Leader: `POST /api/users/auth/complete-leader-registration/`
+      5. Login: `POST /api/users/auth/login/`
+      6. Use token in Authorization header: `Bearer {your_token}`
       """,
       #terms_of_service="https://www.umuganda.com/terms/",
       contact=openapi.Contact(email="admin@umuganda.com"),
@@ -37,8 +47,21 @@ schema_view = get_schema_view(
    permission_classes=(permissions.AllowAny,),
 )
 
+# Root redirect to swagger
+def redirect_to_swagger(request):
+    return redirect('/swagger/')
 
 urlpatterns = [
+    # Root URL redirects to Swagger
+    path('', redirect_to_swagger, name='root-redirect'),
+    
+    # API Documentation (Primary)
+    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='api-docs'),  # Alternative URL
+    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+    path('swagger.json', schema_view.without_ui(cache_timeout=0), name='schema-json'),
+    
+    # Admin & API endpoints
     path('admin/', admin.site.urls),
     path('api/users/', include('apps.users.urls')),
     path('api/projects/', include('apps.projects.urls')),
@@ -46,11 +69,6 @@ urlpatterns = [
     path('api/notifications/', include('apps.notifications.urls')),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    
-    # Swagger URLs
-    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
-    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
-    path('swagger.json', schema_view.without_ui(cache_timeout=0), name='schema-json'),
 ]
 
 if settings.DEBUG:

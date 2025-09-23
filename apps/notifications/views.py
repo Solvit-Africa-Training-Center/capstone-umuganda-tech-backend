@@ -12,8 +12,17 @@ class NotificationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self): #type: ignore
+        # Handle Swagger schema generation
+        if getattr(self, 'swagger_fake_view', False):
+            return Notification.objects.none()
+        
+        user = self.request.user
+        if not user.is_authenticated:
+            return Notification.objects.none()
+            
         # only return notifications for the current user
-        return Notification.objects.filter(user=self.request.user)
+        return Notification.objects.filter(user=user)
+
     
     def get_serializer_context(self):
         return {'request': self.request}
@@ -128,7 +137,16 @@ class NotificationLogViewSet(viewsets.ReadOnlyModelViewSet):
     )
     
     def get_queryset(self): #type: ignore
+        # Handle Swagger schema generation
+        if getattr(self, 'swagger_fake_view', False):
+            return NotificationLog.objects.none()
+        
+        user = self.request.user
+        if not user.is_authenticated:
+            return NotificationLog.objects.none()
+            
         # only return logs for the current user
-        return NotificationLog.objects.filter(user=self.request.user)
+        return NotificationLog.objects.filter(user=user)
+
 
 

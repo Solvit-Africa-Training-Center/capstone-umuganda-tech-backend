@@ -10,8 +10,14 @@ from .models import (
     ProjectCheckinCode,Certificate, ProjectRegistration, 
     LeaderFollowing)
 from .serializers import (
-    ProjectSerializer, ProjectSkillSerializer, AttendanceSerializer,CertificateSerializer, ProjectCheckinCodeSerializer, CheckinSerializer,
-    ProjectRegistrationSerializer, LeaderFollowingSerializer
+    ProjectSerializer,
+    ProjectSkillSerializer,
+    AttendanceSerializer,
+    CertificateSerializer,
+    ProjectCheckinCodeSerializer,
+    CheckinSerializer,
+    ProjectRegistrationSerializer,
+    LeaderFollowingSerializer
     )
 from apps.users.models import User
 from apps.users.permissions import IsOwnerOrAdmin
@@ -270,7 +276,39 @@ class ProjectViewSet(viewsets.ModelViewSet):
         project = serializer.save()
         create_project_notification(project, "project_update")
 
-
+    @swagger_auto_schema(
+        operation_description="Get dashboard statistics including project counts, recent projects, and upcoming deadlines for calendar display",
+        responses={
+            200: openapi.Response(
+                description="Dashboard data retrieved successfully",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'status': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'total_projects': openapi.Schema(type=openapi.TYPE_INTEGER, description="Total number of projects"),
+                                'active_projects': openapi.Schema(type=openapi.TYPE_INTEGER, description="Number of ongoing projects"),
+                                'completed_projects': openapi.Schema(type=openapi.TYPE_INTEGER, description="Number of completed projects"),
+                                'total_volunteers': openapi.Schema(type=openapi.TYPE_INTEGER, description="Total unique volunteers"),
+                            }
+                        ),
+                        'recent_projects': openapi.Schema(
+                            type=openapi.TYPE_ARRAY, 
+                            items=openapi.Items(type=openapi.TYPE_OBJECT),
+                            description="Last 5 created projects"
+                        ),
+                        'upcoming_deadlines': openapi.Schema(
+                            type=openapi.TYPE_ARRAY, 
+                            items=openapi.Items(type=openapi.TYPE_OBJECT),
+                            description="Projects scheduled within next 30 days for calendar display"
+                        ),
+                    }
+                )
+            )
+        }
+    )
+    
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
         """ Dashboard statistics for frontend """
@@ -281,6 +319,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         # Recent projects
         recent_projects = Project.objects.order_by('-created_at')[:5]
+        # Upcoming deadlines - projects in next 30 days for calendar
+        upcoming_deadlines = Project.objects.filter(
+            datetime__gte=timezone.now(),
+            datetime__lte=timezone.now() + timedelta(days=30),
+            status__in=['planned', 'ongoing']
+        ).order_by('datetime')[:10]
         return Response({
             'status':  {
                 'total_projects': total_projects,
@@ -288,7 +332,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 'completed_projects': completed_projects,
                 'total_volunteers': total_volunteers,
             },
-                'recent_projects': ProjectSerializer(recent_projects, many=True, context={'request': request}).data
+                'recent_projects': ProjectSerializer(recent_projects, many=True, context={'request': request}).data,
+                'upcoming_deadlines': ProjectSerializer(upcoming_deadlines, many=True, context={'request': request}).data
 
         })
     @swagger_auto_schema(

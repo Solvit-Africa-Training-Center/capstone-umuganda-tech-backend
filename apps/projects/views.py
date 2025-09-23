@@ -208,15 +208,15 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         project = serializer.save(admin=self.request.user)
         create_project_notification(project, "project_created")
+        # Notify leader follwer
+        from apps.notifications.utils import notify_leader_followers
+        notify_leader_followers(self.request.user, project)
     def get_permissions(self):
         """Make project detail endpoint public"""
         if self.action == 'retrieve':
             return [permissions.AllowAny()]
         return super().get_permissions()
-    # notifiying the leader follower
-        from apps.notifications.utils import notify_leader_followers
-        notify_leader_followers(self.request.user, project)
-    
+
     def perform_update(self, serializer):
         project = serializer.save()
         create_project_notification(project, "project_update")
@@ -284,6 +284,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 )
                 
                 if created:
+                    from apps.notifications.utils import notify_project_leader_new_registration
+                    notify_project_leader_new_registration(project, user)
+    
                     return Response({
                         'message': 'Successfully joined project',
                         'registration': ProjectRegistrationSerializer(registration).data

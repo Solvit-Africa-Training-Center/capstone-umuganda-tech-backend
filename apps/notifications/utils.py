@@ -110,7 +110,10 @@ def notify_registered_users(project, notification_type="project_reminder"):
     
     Notification.objects.bulk_create(notifications)
 
-# ---------------------
+# ---------------------------------
+# Notification on leader
+# ---------------------------------
+
 
 def notify_leader_followers(leader, project):
     """Notify followers when leader creates new project"""
@@ -129,3 +132,18 @@ def notify_leader_followers(leader, project):
         ))
     
     Notification.objects.bulk_create(notifications)
+
+# ----------------------------
+# notify new registration on project to leader
+# ----------------------------
+
+def notify_project_leader_new_registration(project, user):
+    """Notify project leader when someone joins their project"""
+    if project.admin != user:  # Don't notify if leader joins their own project
+        Notification.create_notification(
+            user=project.admin,
+            title="New Registration",
+            message=f"{user.first_name or user.phone_number} joined your project '{project.title}'",
+            notification_type="project_registration",
+            project=project
+        )

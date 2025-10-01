@@ -297,6 +297,13 @@ SWAGGER_SETTINGS = {
     'SHOW_EXTENSIONS': True,
     'DEFAULT_MODEL_RENDERING': 'example'
 }
+# Production static files for Swagger
+if not DEBUG:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    SWAGGER_SETTINGS.update({
+        'STATIC_URL': '/static/',
+        'VALIDATOR_URL': None,
+    })
 
 REDOC_SETTINGS = {
     'LAZY_RENDERING': False,

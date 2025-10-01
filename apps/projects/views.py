@@ -440,17 +440,11 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self): # type: ignore
         """ Filter attendance records based on user permissions """
-        # Handle Swagger schema generation
-        if getattr(self, 'swagger_fake_view', False):
-            return Attendance.objects.none()
-        
         user = self.request.user
-        if not user.is_authenticated:
-            return Attendance.objects.none()
-            
         # Users can only see their own attendance records
         # Leaders can see attendance for their projects
-        if hasattr(user, 'role') and user.role == 'leader': #type: ignore
+        if user.role == 'leader': #type: ignore
+            # leaders can see attendance for projects
             return Attendance.objects.filter(
                 models.Q(user=user) | 
                 models.Q(project__admin=user)
@@ -458,7 +452,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         else:
             # Volunteers can only see their own attendance
             return Attendance.objects.filter(user=user)
-
 @swagger_auto_schema(
     method='post',
     operation_description="Generate QR code for project check-in (Project admin only)",
@@ -632,18 +625,9 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
 
     def get_queryset(self):  #type: ignore
-        # Handle Swagger schema generation
-        if getattr(self, 'swagger_fake_view', False):
-            return Certificate.objects.none()
-        
-        user = self.request.user
-        if not user.is_authenticated:
-            return Certificate.objects.none()
-            
-        if hasattr(user, 'role') and user.role == 'admin': #type: ignore
+        if self.request.user.role == 'admin':   #type: ignore
             return Certificate.objects.all()
-        return Certificate.objects.filter(user=user)
-
+        return Certificate.objects.filter(user=self.request.user)
     
     @action(detail=False, methods=['post'], url_path='generate/(?P<project_id>[^/.]+)')
     def generate_certificate(self, request, project_id=None):
@@ -686,6 +670,35 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
             if created or not certificate.certificate_file:
                 CertificateService.generate_pdf(certificate)
             return certificate
+
+    @action(detail=False, methods=['post'], url_path='bulk-generate/(?P<project_id>[^/.]+)')
+    def bulk_generate(self, request, project_id=None):
+        """Generate certificates for all attendees of a completed project (Leaders only)"""
+        project = get_object_or_404(Project, id=project_id)
+        
+        if project.admin != request.user:
+            return Response({'error': 'Only project admin can bulk generate certificates'}, status=status.HTTP_403_FORBIDDEN)
+        
+        if project.status != 'completed':
+            return Response({'error': 'Certificates can only be generated for completed projects'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        attendees = Attendance.objects.filter(project=project, check_out_time__isnull=False).values_list('user', flat=True).distinct()
+        
+        generated_certificates = []
+        for user_id in attendees:
+            user = User.objects.get(id=user_id)
+            certificate, created = Certificate.objects.get_or_create(user=user, project=project)
+            
+            if created or not certificate.certificate_file:
+                CertificateService.generate_pdf(certificate)
+            
+            generated_certificates.append(certificate)
+        
+        return Response({
+            'message': f'Generated {len(generated_certificates)} certificates',
+            'certificates': self.get_serializer(generated_certificates, many=True).data
+        }, status=status.HTTP_200_OK)
+
 
 # Leader Following endpoints
 @api_view(['POST'])

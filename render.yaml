@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: umuganda-tech-backend
+    env: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn umugandatech.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: umuganda-db
+          property: connectionString
+      - key: RENDER
+        value: "1"
+
+  - type: pserv
+    name: umuganda-db
+    env: postgresql
+    plan: free
+    databaseName: umuganda_tech
+    databaseUser: umuganda_user

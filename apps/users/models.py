@@ -21,6 +21,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     sector = models.CharField(max_length=100, blank=True, null=True)
     role=models.CharField(max_length=50, choices=Roles.choices, default='Volunteer' )
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    # leader approval fields 
+    is_leader_approved = models.BooleanField(default=False)
+    leader_verification_document = models.FileField(upload_to='leader_documents/', blank=True, null=True)
+    leader_application_date = models.DateTimeField(blank=True, null=True)
+    approval_date = models.DateTimeField(blank=True, null=True) 
+    approved_by = models.ForeignKey('self', on_delete=models.SET_NULL, blank=True, null=True, related_name='approved_leaders')
 
     # Django auth flags
     is_active = models.BooleanField(default=True)

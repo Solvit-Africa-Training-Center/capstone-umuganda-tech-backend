@@ -219,12 +219,11 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     
-    # Production CORS - uncomment and update when you deploy
-    # CORS_ALLOW_ALL_ORIGINS = False
-    # CORS_ALLOWED_ORIGINS = [
-    #     "https://your-frontend.vercel.app",
-    #     "https://your-frontend.netlify.app",
-    # ]
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGINS = [
+        # "https://your-frontend.vercel.app",
+        "umugandatech.netlify.app",
+    ]
 
 
 

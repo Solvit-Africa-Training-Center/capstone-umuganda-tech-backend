@@ -1,3 +1,5 @@
+from django.views.static import serve
+from django.urls import re_path
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -56,6 +58,7 @@ urlpatterns = [
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     path('swagger.json', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     path('health/', health_check, name='health_check'),
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
 ]
 
 if settings.DEBUG:

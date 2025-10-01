@@ -186,6 +186,9 @@ MEDIA_URL = '/media/'
 # Smart path detetction for development vs production
 if os.environ.get('RENDER'):
     # Production on render
+    WHITENOISE_USE_FINDERS = True
+    WHITENOISE_AUTOREFRESH = True
+    WHITENOISE_STATIC_PREFIX = '/static/'
     MEDIA_ROOT = '/opt/render/project/src/media'
     STATIC_ROOT = '/opt/render/project/src/staticfiles'
 else:

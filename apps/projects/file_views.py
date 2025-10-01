@@ -49,6 +49,10 @@ def is_safe_path(path):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def upload_project_image(request, project_id):
+    print(f"FILES: {request.FILES}")
+    print(f"POST: {request.POST}")
+
+
     """ Upload project image (Leaders only) """
     project = get_object_or_404(Project, id=project_id)
 

@@ -263,15 +263,15 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         project = serializer.save(admin=self.request.user)
         create_project_notification(project, "project_created")
+        # Notify leader follwer
+        from apps.notifications.utils import notify_leader_followers
+        notify_leader_followers(self.request.user, project)
     def get_permissions(self):
         """Make project detail endpoint public"""
         if self.action == 'retrieve':
             return [permissions.AllowAny()]
         return super().get_permissions()
-    # notifiying the leader follower
-        from apps.notifications.utils import notify_leader_followers
-        notify_leader_followers(self.request.user, project)
-    
+
     def perform_update(self, serializer):
         project = serializer.save()
         create_project_notification(project, "project_update")
@@ -380,6 +380,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 )
                 
                 if created:
+                    from apps.notifications.utils import notify_project_leader_new_registration
+                    notify_project_leader_new_registration(project, user)
+    
                     return Response({
                         'message': 'Successfully joined project',
                         'registration': ProjectRegistrationSerializer(registration).data
@@ -667,6 +670,35 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
             if created or not certificate.certificate_file:
                 CertificateService.generate_pdf(certificate)
             return certificate
+
+    @action(detail=False, methods=['post'], url_path='bulk-generate/(?P<project_id>[^/.]+)')
+    def bulk_generate(self, request, project_id=None):
+        """Generate certificates for all attendees of a completed project (Leaders only)"""
+        project = get_object_or_404(Project, id=project_id)
+        
+        if project.admin != request.user:
+            return Response({'error': 'Only project admin can bulk generate certificates'}, status=status.HTTP_403_FORBIDDEN)
+        
+        if project.status != 'completed':
+            return Response({'error': 'Certificates can only be generated for completed projects'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        attendees = Attendance.objects.filter(project=project, check_out_time__isnull=False).values_list('user', flat=True).distinct()
+        
+        generated_certificates = []
+        for user_id in attendees:
+            user = User.objects.get(id=user_id)
+            certificate, created = Certificate.objects.get_or_create(user=user, project=project)
+            
+            if created or not certificate.certificate_file:
+                CertificateService.generate_pdf(certificate)
+            
+            generated_certificates.append(certificate)
+        
+        return Response({
+            'message': f'Generated {len(generated_certificates)} certificates',
+            'certificates': self.get_serializer(generated_certificates, many=True).data
+        }, status=status.HTTP_200_OK)
+
 
 # Leader Following endpoints
 @api_view(['POST'])

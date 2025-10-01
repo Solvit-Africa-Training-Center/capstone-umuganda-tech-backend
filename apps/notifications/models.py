@@ -9,7 +9,9 @@ class Notification(models.Model):
         ("new_comment", "New Comment"),
         ("project_reminder", "Project Reminder"),
         ("upvote_received", "Upvote Received"),
-        ("project_created", "New Project Created")
+        ("project_created", "New Project Created"),
+        ("project_registration", "New Registration"),
+        ("leader_new_project", "Leader New Project")
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")

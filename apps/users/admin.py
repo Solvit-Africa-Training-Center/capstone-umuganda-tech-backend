@@ -1,20 +1,24 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User, Skill, UserSkill, Badge, UserBadge
+from django.utils import timezone
 
 # -------------------------------
 # Custom User Admin
 # -------------------------------
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('phone_number', 'first_name', 'last_name', 'email', 'sector','role', 'is_staff', 'is_active', 'created_at')
-    list_filter = ('is_staff', 'is_active', 'sector')
+    list_display = ('phone_number', 'first_name', 'last_name', 'email', 'sector', 'role', 'is_leader_approved', 'leader_application_date', 'is_staff', 'is_active', 'created_at')
+    list_filter = ('is_staff', 'is_active', 'sector', 'role', 'is_leader_approved')
     search_fields = ('phone_number', 'first_name', 'last_name', 'email')
     ordering = ('phone_number',)
-    readonly_fields = ('created_at',)
+    readonly_fields = ('created_at', 'leader_application_date', 'approval_date')
+    actions = ['approve_leaders', 'reject_leaders']
+    
     fieldsets = (
         (None, {'fields': ('phone_number', 'password')}),
-        ('Personal Info', {'fields': ('first_name', 'last_name', 'email', 'sector','role')}),
+        ('Personal Info', {'fields': ('first_name', 'last_name', 'email', 'sector', 'role')}),
+        ('Leader Approval', {'fields': ('is_leader_approved', 'leader_verification_document', 'leader_application_date', 'approval_date', 'approved_by')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important Dates', {'fields': ('last_login', 'created_at')}),
     )
@@ -25,6 +29,17 @@ class UserAdmin(BaseUserAdmin):
         ),
     )
 
+    def approve_leaders(self, request, queryset):
+        updated = queryset.filter(role='leader', is_leader_approved=False).update(
+            is_leader_approved=True, 
+            approval_date=timezone.now(),
+            approved_by=request.user
+        )
+        self.message_user(request, f'{updated} leaders have been approved.')
+
+    def reject_leaders(self, request, queryset):
+        updated = queryset.filter(role='leader').update(is_leader_approved=False)
+        self.message_user(request, f'{updated} leaders have been rejected.')
 
 # Skills Admin
 @admin.register(Skill)

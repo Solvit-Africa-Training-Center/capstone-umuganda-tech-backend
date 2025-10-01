@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from django.utils import timezone
 @swagger_auto_schema(
     method='post',
     operation_description="Register a new user with phone number",
@@ -186,6 +187,9 @@ def complete_leader_registration(request):
     if not all([phone_number, password, first_name, last_name, sector]):
         return Response({'error': 'All fields are required.'}, status=status.HTTP_400_BAD_REQUEST)
     
+    if 'verification_document' not in request.FILES:
+        return Response({'error': 'Verification document is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    
     # Check if OTP was verified
     verified_otp = OTP.objects.filter(phone_number=phone_number, is_verified=True).first()
     if not verified_otp:
@@ -205,17 +209,21 @@ def complete_leader_registration(request):
         role='leader'
     )
     user.set_password(password)
-    user.is_verified = True
+    # user.is_verified = True
     user.sector = sector
+    user.leader_verification_document = request.FILES['verification_document']
+    user.leader_application_date = timezone.now()
+    user.is_leader_approved = False
     user.save()
 
     # Generate JWT tokens
     refresh = RefreshToken.for_user(user)
     return Response({
-        'access': str(refresh.access_token),
-        'refresh': str(refresh),
+        # 'access': str(refresh.access_token),
+        # 'refresh': str(refresh),
         'user': UserSerializer(user).data,
-        'message': 'Leader registration completed successfully'
+        'message': 'Leader application submitted successfully. wait for admin approval.',
+        'status': 'pending_approval'
     }, status=status.HTTP_201_CREATED)
 
 @api_view(['POST'])
@@ -248,9 +256,15 @@ def login(request):
     if serializer.is_valid():
         user = serializer.validated_data['user']  #type: ignore
 
+        # Check if leader is approved
+        if user.role == 'leader' and not user.is_leader_approved:
+            return Response({
+                'error': 'Your leader application is still pending approval. Please wait for approval.',
+                'status': 'pending_approval'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
-
         return Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
@@ -309,9 +323,11 @@ def resend_otp(request):
         'otp_code': otp.code
     }
 
+    return Response(response_data, status=status.HTTP_200_OK)
+
     # Include OTP in development mode only
     # if settings.DEBUG:
-    #     response_data["otp_code"] = otp.code
+    # response_data["otp_code"] = otp.code
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -413,3 +429,18 @@ def reset_database(request):
             'error': str(e),
             'message': 'Database reset failed'
         }, status=500)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def upload_leader_document(request):
+    """ Upload leader verification document """
+    if request.user.role != 'leader':
+        return Response({'error': 'Only leaders can upload verification documents.'}, status=403)
+    
+    if 'document' not in request.FILES:
+        return Response({'error': 'No document provided.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    request.user.leader_verification_document = request.FILES['document']
+    request.user.save()
+
+    return Response({'message': 'Document uploaded successfully.'}, status=status.HTTP_200_OK)

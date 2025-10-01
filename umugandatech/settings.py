@@ -182,7 +182,22 @@ SIMPLE_JWT = {
     }
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Smart path detetction for development vs production
+if os.environ.get('RENDER'):
+    # Production on render
+    MEDIA_ROOT = '/opt/render/project/src/media'
+    STATIC_ROOT = '/opt/render/project/src/staticfiles'
+else:
+    # Development 
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# File upload security (works for both environments)
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5 * 1024 * 1024  # 5 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
+FILE_UPLOAD_PERMISSIONS = 0o644
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
 
 # CORS settings for frontend
 CORS_ALLOWED_ORIGINS = [
@@ -194,6 +209,24 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only for development, not safe for production
+
+# Production Security Settings (only active when DEBUG=False)
+if not DEBUG:
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    
+    # Production CORS - uncomment and update when you deploy
+    # CORS_ALLOW_ALL_ORIGINS = False
+    # CORS_ALLOWED_ORIGINS = [
+    #     "https://your-frontend.vercel.app",
+    #     "https://your-frontend.netlify.app",
+    # ]
+
+
 
 # Twilio Configuration
 TWILIO_ACCOUNT_SID = config('TWILIO_ACCOUNT_SID', default='')
@@ -238,8 +271,6 @@ LOGGING = {
         },
     },
 }
-CORS_ALLOW_ALL_ORIGINS = True  # Only for development, not safe for production
-
 
 # Swagger Settings
 SWAGGER_SETTINGS = {
@@ -266,7 +297,22 @@ SWAGGER_SETTINGS = {
     'SHOW_EXTENSIONS': True,
     'DEFAULT_MODEL_RENDERING': 'example'
 }
+# Production static files for Swagger
+if not DEBUG:
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+    SWAGGER_SETTINGS.update({
+        'STATIC_URL': '/static/',
+        'VALIDATOR_URL': None,
+    })
 
 REDOC_SETTINGS = {
     'LAZY_RENDERING': False,
 }
+# Fix Swagger static files in production
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+]
+
+# WhiteNoise configuration for serving static files in production
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_AUTOREFRESH = True

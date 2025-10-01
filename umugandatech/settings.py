@@ -221,8 +221,7 @@ if not DEBUG:
     
     CORS_ALLOW_ALL_ORIGINS = False
     CORS_ALLOWED_ORIGINS = [
-        # "https://your-frontend.vercel.app",
-        "umugandatech.netlify.app",
+        "https://umugandatech.netlify.app",
     ]
 
 
